@@ -12,6 +12,7 @@ use warnings;
 use Text::CSV;
 use Text::Wrap;
 use Date::Manip;
+use Getopt::Long;
 
 use constant DEBUG => 0;
 use Data::Dumper;
@@ -1263,7 +1264,14 @@ my $line;
 my $ident = '';
 my $responses = 0;
 
+my ($hist_resp, $test_resp, $free_resp, $resp);
+
 my %datehist = ();
+
+GetOptions('hist|h=i' => \$hist_resp,
+           'test|t=i' => \$test_resp,
+           'free|f=i' => \$free_resp);
+$resp = $hist_resp || $test_resp || $free_resp;
 
 foreach my $q (@questions) {
 	if (!exists $q->{'histogram'} &&
@@ -1324,21 +1332,22 @@ while ($line = <>) {
 
 	my $q = $questions[$questionno];
 
-#=xxx
-
 	# dump responses, or debug tabularization / normalizing responses
-	if ($questionno eq '13' && $response ne '') {
-		#print join("\n", normalize_age($response)) . "\n";
-		#print "$response\n => [" . join(",", normalize_os($response)) . "]\n";
-		#print normalize_arch($response) . " <= $response\n";
-		#print $response . "\n" if $response;
-		$response =~ s/  /\n\n/g;
-		print "*".fill(" ", '', $response) . "\n\n";
+	if ($resp && $questionno eq $resp && $response ne '') {
+		if ($hist_resp && ref($q->{'hist'}) eq 'CODE') {
+			print join("\n", $q->{'hist'}->($response)) . "\n";
+		} elsif ($test_resp && ref($q->{'hist'}) eq 'CODE') {
+			print "$response\n => [" .
+			      join(",", $q->{'hist'}->($response)) .
+			      "]\n";
+		} elsif ($free_resp) {
+			$response =~ s/  /\n\n/g;
+			print "*".fill(" ", '', $response) . "\n\n";
+		}
+
+		next LINE;
 	}
 
-#=cut
-
-=xxx
 
 	# count non-empty responses
 	add_to_hist($q, 'base')
@@ -1361,11 +1370,10 @@ while ($line = <>) {
 		}
 	}
 
-=cut
-
 }
 
-__END__
+exit 0 if $resp;
+
 
 print "There were $responses individual responses\n";
 
@@ -1377,7 +1385,6 @@ if (exists $sections[0]) {
 	      "\n";
 }
 
-=xxx
 
 print "00. Date of response\n\n";
 my ($dates_before, $dates_during, $dates_after) = (0,0,0);
@@ -1439,9 +1446,6 @@ printf("  %-30s | %d\n", 'After',  $dates_after);
 
 print  "  ", '-' x 42, "\n";
 
-=cut
-
-#__END__
 
 my $nextsect = 1;
 
