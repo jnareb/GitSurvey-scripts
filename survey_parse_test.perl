@@ -894,6 +894,61 @@ sub normalize_os {
 	return @os_list;
 }
 
+# uses first number, or first range
+sub normalize_ {
+	my $line = shift;
+	my $num = '';
+
+	# dealing with ranges
+	## 'n to m'
+	$line =~ s/(\d+)\s+to\s+(\d+)/$1-$2/;
+	## range to number
+	if ($line =~ /(\d+)\s*-\s*(\d+)/) {
+		$num = ($1 + $2)/2.0;
+		#$num = int(($1 + $2)/2.0);
+	}
+
+	# unit suffixes (assume SI)
+	$line =~ s/(\d+)k/${1}000/;
+	$line =~ s/(\d+)m/${1}000000/;
+
+	# numbers written as text (in English)
+	$line =~ s/\bone\b/1/i;
+	$line =~ s/\btwo\b/2/i;
+	$line =~ s/\bthree\b/3/i;
+	$line =~ s/\bfour\b/4/i;
+	$line =~ s/\bfive\b/5/i;
+	$line =~ s/\bfour\b/10/i;
+	$line =~ s/\bhalf\s+(?:a\s+)?dozen\b/6/i;
+	$line =~ s/\bdozen[s]?\b/12/i;
+	$line =~ s/\bhundred[s]?\b/100/i;
+
+	# extract (first) number
+	if ($num eq '' && $line =~ /(\d+)/) {
+		$num = $1;
+	}
+
+	# quantize
+	if ($num ne '') {
+		if ($num < 9) {
+			return int($num);
+		} elsif ($num <= 10) {
+			return '9-10';
+		} elsif ($num <= 15) {
+			return '11-15';
+		} elsif ($num <= 25) {
+			return '16-25';
+		} elsif ($num <= 50) {
+			return '26-50';
+		} elsif ($num <= 100) {
+			return '51-100';
+		} else {
+			return ' > 100';
+		}
+	}
+	return $num;
+}
+
 # ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 # ......................................................................
 
@@ -1063,7 +1118,7 @@ my @questions =
 	 {'title' => '24. How big are the repositories that you work on?',
 	  'freeform' => 1},
 	 {'title' => '25. How many different projects do you manage using GIT?',
-	  'hist' => 1},
+	  'hist' => \&normalize_number},
 	 {'title' => '26. Which porcelains do you use?',
 	  'codes' =>
 		[undef,
