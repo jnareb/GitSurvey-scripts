@@ -895,7 +895,7 @@ sub normalize_os {
 }
 
 # uses first number, or first range
-sub normalize_ {
+sub normalize_number {
 	my $line = shift;
 	my $num = '';
 
@@ -1319,13 +1319,14 @@ my $line;
 my $ident = '';
 my $responses = 0;
 
-my ($hist_resp, $test_resp, $free_resp, $resp);
+my ($hist_resp, $test_resp, $free_resp, $resp, $resp_only);
 
 my %datehist = ();
 
 GetOptions('hist|h=i' => \$hist_resp,
            'test|t=i' => \$test_resp,
-           'free|f=i' => \$free_resp);
+           'free|f=i' => \$free_resp,
+           'only|o=i' => \$resp_only);
 $resp = $hist_resp || $test_resp || $free_resp;
 
 foreach my $q (@questions) {
@@ -1518,6 +1519,8 @@ for (my $i = 1; $i <= $#questions; ++$i) {
 	}
 
 	print "\n$q->{'title'}\n";
+
+	next QUESTION if ($resp_only && $resp_only != $i);
 
 	unless (exists $q->{'histogram'} &&
 	        scalar $q->{'histogram'}) {
