@@ -894,6 +894,267 @@ sub normalize_os {
 	return @os_list;
 }
 
+# returns ARRAY
+sub normalize_project {
+	my $line = shift;
+
+	return '' unless (defined $line && $line ne '');
+
+	# expand xxx-{a b c} to xxx-a xxx-b xxx-c
+	if ($line =~ s/([-0-9a-zA-Z]+)\{([^}]*)\}//i) {
+		foreach (split(' ', $2)) {
+			$line .= " $1$_";
+		}
+	}
+	# by hand
+	$line =~ s/Everything at work \(50\+ repos\)  along with some small projects of my own\./work own/i;
+	$line =~ s/my own private projects and documents \(school reports  etc\)  the ones from gnome\.org through git-svn and the ones from my work  through git-svn too/own gnome_(git-svn) work_(git-svn)/i;
+	$line =~ s/my \{own school company\} projects/own work/i;
+	$line =~ s/\(curl and waf in own git mirrors\)/curl waf/i;
+	$line =~ s/5 \(mplayer  wormux  vlc  git  xmoto - I use git-svn for some projects\)\./mplayer wormux VLC git xmoto/i;
+	$line =~ s/All our projects at GPLHost/GPLHost/;
+	$line =~ s/homework assignments  hobby projects  everything else/own/i;
+	$line =~ s!Currently  http://search\.cpan\.org/dist/Language-MuldisD  /Muldis-DB!Language-MuldisD Muldis-DB!i;
+	$line =~ s/my home directory  various SVN projects \(internal and external\)  various personal repositories  various wikis/own unspecified_(git-svn) wikis/i;
+	$line =~ s/own work project  OSS projects/own unspecified/i;
+	$line =~ s!various projects at dev\.laptop\.org/git!OLPC!i;
+	$line =~ s/All of Xorg as well as our own packaging repositories for it/xorg own/i;
+	$line =~ s/Mostly things for work or personal use -- I haven't converted the rest of the world yet/own work/i;
+	$line =~ s/all source I write  articles  presentations  diploma thesis \(Latex source\)/own/i;
+	$line =~ s/my homework//i;
+	$line =~ s!\(http://vle\.univ-littoral\.fr/gitweb\)!!i;
+	# corrections
+	$line =~ s/\bocasionaly\b/occasionally/ig;
+	$line =~ s/\bproejcts\b/projects/ig;
+	$line =~ s/\bitselg\b/itself/ig;
+	$line =~ s/\bonly mines\b/only mine/ig;
+	$line =~ s/^mines$/mine/i;
+	$line =~ s/\ba fw\b/a few/ig;
+	# projects given by URL
+	$line =~ s/\b(?:all )?(?:the )?projects at http:\/\/(\S*)/http:__$1/i;
+	$line =~ s/\b(?:sf|sourceforge)\.net projects\b/sf.net/i;
+	$line =~ s/\b(\w+(?:\.\w+)+)\/\*/http:__$1/ig;
+	$line =~ s!http://(\w+(?:\.\w+)+)[/\w.]*!http:__$1!ig;
+	# normalize
+	$line =~ s/\bOLPC project[s]?\b/OLPC/ig;
+	# multi-word projects
+	$line =~ s!Source Mage GNU/Linux!Source_Mage!i;
+	$line =~ s!Source Mage!Source_Mage!i;
+	$line =~ s/\bArch Linux\b/Arch_Linux/i;
+	$line =~ s!Thousand Parsec!Thousand_Parsec!i;
+	$line =~ s!thousandparsec!Thousand_Parsec!i;
+	$line =~ s/\bkernel-related\b/kernel_related/i;
+	$line =~ s/\bLinux wireless-dev\b/wireless-dev/i;
+	$line =~ s/\brt2x00 (?:linux|kernel|driver[s]?)/rt2x00/ig;
+	$line =~ s/\bdavinci kernel\b/davinci_kernel/i;
+	$line =~ s/\b(?:various )?kernel module(?: repos|repositories)?\b/kernel_module/i;
+	$line =~ s/linux (\d\.\d) kernel/linux-$1/i;
+	$line =~ s/\b(?<!Linux )kernel-tree[s]?\b/Linux_kernel/ig;
+	$line =~ s/\bLinux[ -]kernel?\b/Linux_kernel/i;
+	$line =~ s/\bLinux(?! kernel|-)\b/Linux_kernel/i;
+	$line =~ s/\b(?<!Linux[- ])kernel(?!\.)(?:-\d.\d+)?\b/Linux_kernel/i;
+	$line =~ s/linux-mips\.org kernel\b/linux-mips\.org Linux_kernel/i;
+	$line =~ s/\bLinus' branch\b/Linux_kernel/i;
+	$line =~ s/embedded distribution \(Slind\)/Slind_(embedded_distribution)/i;
+	$line =~ s/Apache Harmony/Apache_Harmony/i;
+	$line =~ s/PS3 kernel/PS3_kernel/i;
+	$line =~ s/kernel drivers/kernel_drivers/i;
+	$line =~ s/X(?:11)? drivers/X_drivers/i;
+	$line =~ s/xserver and drivers/xserver X_drivers/i;
+	$line =~ s/\bxorg (\w+) driver[s]?\b/xorg_${1}_drivers/i;
+	$line =~ s/\bsummer of code(?: project[s]?)?\b/GSoC_projects/i;
+	$line =~ s/\bGNOME applications\b/GNOME_applications/i;
+	$line =~ s/\bApache progs\b/Apache_programs/i;
+	$line =~ s/\bconfig(?:uration)? files\b/configuration_files/ig;
+	$line =~ s/\bRuby on Rails\b/Ruby_on_Rails/ig;
+	$line =~ s/\ba range of Lisp projects\b/Lisp_projects/ig;
+	$line =~ s/An online football manager game/online_game/i;
+	$line =~ s/ati tv drivers/ATI_TV_drivers/i;
+	$line =~ s/\bSpring RTS\b/Spring_RTS/ig;
+	$line =~ s/\belse[- ]project[s]?/else_projects/ig;
+	$line =~ s/\bplone packages\b/Plone_packages/ig;
+	# own/work/unspecified
+	$line =~ s/\b(:?my )?(?:own|personal)(?: project[s]?)?\b/own/ig;
+	$line =~ s/\bmy project[s]?\b/own/ig;
+	$line =~ s/\bpersonal(?: stuff)?\b/own/ig;
+	$line =~ s/\bmine\b/own/ig;
+	$line =~ s/\bour own\b/own/ig;
+	$line =~ s/\banything I (?:write|wrote)\b/own/ig;
+	$line =~ s/\bprivate(?: project[s]?| things)?\b/private/ig;
+	$line =~ s/\bcan not disclose\b/private/ig;
+	$line =~ s/\bnon-public\b/private/ig;
+	$line =~ s/\bprivate code\b/private/ig;
+	$line =~ s/\bno(?:thing)? public\b/private/ig;
+	$line =~ s/\b(?:my )?(?:own )?private work\b/private/ig;
+	$line =~ s/\b(?:various|several) other[s]?\b/unspecified/ig;
+	$line =~ s/\bvarious (?:smaller )?projects\b/unspecified/ig;
+	$line =~ s/\bvarious (?:minor )?stuff\b/unspecified/ig;
+	$line =~ s/\babout \d+ projects\b/unspecified/ig;
+	$line =~ s/\b\d+\+? repos(?:itories)?\b/unspecified/ig;
+	$line =~ s/^lots$/unspecified/ig;
+	$line =~ s/^all$/unspecified/ig;
+	$line =~ s/\bfriend's projects\b/private/ig;
+	$line =~ s/\bmany others\b/unspecified/ig;
+	$line =~ s/\bproprietary(?: code)?\b/proprietary/ig;
+	$line =~ s/\bMany projects from internet\b/unspecified/ig;
+	$line =~ s/\bMany at this point\b/unspecified/ig;
+	$line =~ s/\bToo many to list\.?\b/unspecified/ig;
+	$line =~ s/^various$/unspecified/i;
+	$line =~ s/^several\b/unspecified/i;
+	$line =~ s/Everything at work \(\d+\+ repos\)/work/i;
+	$line =~ s/along with some small projects of my own\.?/own/i;
+	$line =~ s/\bday-job(?: stuff)?\b/work/ig;
+	$line =~ s/\bwork-related\b/work/ig;
+	$line =~ s/\bproject[s]? at work\b/work/ig;
+	$line =~ s/\bmy job(?:'s)?\b/work/ig;
+	$line =~ s/\binternal(?: ones| projects| source code)\b/work/ig;
+	$line =~ s/\bcompany internal\b/work/ig;
+	$line =~ s/\bsmall internal tool\b/work/ig;
+	$line =~ s/\bcompany-internal(?: ones)?\b/work/ig;
+	$line =~ s/\binternal\b/work/ig;
+	$line =~ s/\bin[-]?house\b/work/ig;
+	$line =~ s/Only my parts of a larger team project\./work/i;
+	$line =~ s/\buse it only with Subversion repositories\b/unspecified_(git-svn)/ig;
+	$line =~ s/Just things me and my friends make\.  Nothing you would have heard of/unspecified/i;
+	$line =~ s/several \(too many to list\)/unspecified/i;
+	$line =~ s/my robotic club code/own/i;
+	$line =~ s/anything I use that publishes one/own/i;
+	# qualifiers
+	$line =~ s/\s+\(git[- ]svn\)/_(git-svn)/ig;
+	$line =~ s/\s+\(via\s+git[- ]svn\)/_(git-svn)/ig;
+	$line =~ s/\s+which uses CVS/_(cvs)/ig;
+	# normalize project names
+	$line =~ s/\bX\.org\b/xorg/ig;
+	$line =~ s/\bxorg(?:-modular| component[s]?)\b/xorg/ig;
+	$line =~ s/\bgit-core\b/git/ig;
+	$line =~ s/\bfreedesktop\.org\b/freedesktop/ig;
+	$line =~ s/\bfreedesktop's ones\b/freedesktop/ig;
+	$line =~ s/\*\.fdo\.org\b/freedesktop/ig;
+	$line =~ s/\bfd\.o\b/freedesktop/ig;
+	$line =~ s/\b(?:\*\.)?fdo\.o(?:rg)?\b/freedesktop/ig;
+	$line =~ s/various projects at dev\.laptop\.org\/git/OLPC/i;
+	$line =~ s/olpc \(dev\.laptop\.org\)/OLPC/ig;
+	$line =~ s/\blaptop\.org\b/OLPC/i;
+	$line =~ s/\bGNU LilyPond\b/LilyPond/i;
+	$line =~ s/facebook\.com front-end\/back-end \(all\) projects/facebook.com/i;
+	$line =~ s/\bpacman \(Arch Linux.* package manager\)\b/pacman/ig;
+	$line =~ s/\bXorg server\b/xserver/ig;
+	$line =~ s/\b(?:the )?Io interpreter\b/Io/i;
+	$line =~ s/\bEclipse git interface\b/egit/i;
+	$line =~ s!\bCompiz[-/ ]Fusion\b!Compiz_Fusion!ig;
+	$line =~ s/MinGW port of GIT/msysgit/i;
+	$line =~ s/git for mingw/4msysgit/i;
+	$line =~ s/www\.sbcl\.org/SBCL/ig;
+	$line =~ s/rubinius \(rbx\)/rubinius/ig;
+	$line =~ s/my home directory dotfiles/dotfiles/i;
+
+	$line =~ s/\.git\b//ig;
+	$line =~ s/\.sf\.net\b//ig;
+	$line =~ s/\.berlios\.de\b//ig;
+	$line =~ s/\.forked\.de\b//ig;
+
+	# remove comments etc.
+	$line =~ s/^0$//ig;
+	$line =~ s/^-+$//ig;
+	$line =~ s!^N/?A$!!ig;
+	$line =~ s/^none(?: yet| regularly| at present)?\.?$//ig;
+	$line =~ s/\.\.\.?//ig;
+	$line =~ s/^\?+$//ig;
+	$line =~ s/[:;]-?[)(]//ig; # smileys
+	$line =~ s/(?:^|\s):(?:$|\s)//ig;
+
+	$line =~ s/\bmany .* ago\b//ig;
+	$line =~ s/\bsome other like\b//ig;
+	$line =~ s/\bright now\b//ig;
+	$line =~ s/\bmain\s+games\b//ig;
+	$line =~ s/\bamong(?:st)? (?:many )?more\b//ig;
+	$line =~ s/\blinus the\b//ig;
+	$line =~ s/\bspecifically .* repository\b//ig;
+	$line =~ s/\blots of community projects//ig;
+	$line =~ s/\bnone (?:beside[s]?|except for)\b//ig;
+	$line =~ s/\bdon't recall\b//ig;
+	$line =~ s/\bothers which I can't talk about\b/private/ig;
+	$line =~ s/(the new gnome VFS)//i;
+	$line =~ s/\bCurrently no others\b//i;
+	$line =~ s/various git-cvsimport and git-svn projects/unspecified_(git-svn)/i;
+	$line =~ s/a collection of C sources for NetBSD and unix in geralar for didactic purposes/unspecified/i;
+	$line =~ s/most of the project I work on  I track using git//i;
+	$line =~ s/most of the kernel projects involved with iscsi  kernel/iscsi Linux_kernel/i;
+	$line =~ s/8\.10 on PPC//i; # ???
+	$line =~ s/my branch of//ig;
+	$line =~ s/(?:local )?repository of//i;
+	$line =~ s/in[- ]development//ig;
+	$line =~ s/\(just 'cause\)//ig;
+	$line =~ s/at the moment//i;
+
+	$line =~ s/\band\b//ig;
+	$line =~ s/\bones\b//ig;
+	$line =~ s/\bonly\b//ig;
+	$line =~ s/\balso\b//ig;
+	$line =~ s/\btrees\b//ig;
+	$line =~ s/\bminor\b//ig;
+	$line =~ s/\bmain\b//ig;
+	$line =~ s/\bsome\b//ig;
+	$line =~ s/\bstuff\b//ig;
+	$line =~ s/\bamong\b//ig;
+	$line =~ s/\bcode\b//ig;
+	$line =~ s/\bseveral\b//ig;
+	$line =~ s/\bvarious\b//ig;
+	$line =~ s/\b\(?rarely\)?\b//ig;
+	$line =~ s/\bmany(?: of)?\b//ig;
+	$line =~ s/\ba few\b//ig;
+	$line =~ s/\bfrom\b//ig;
+	$line =~ s/\bjust\b//ig;
+	$line =~ s/\brelated\b//ig;
+	$line =~ s/\bdev branch\b//ig;
+	$line =~ s/\bother[s]?\b//ig;
+	$line =~ s/\boccasionally\b//ig;
+	$line =~ s/\brepositories\b//ig;
+	$line =~ s/\bfriend[s]?\b//ig;
+	$line =~ s/\bitself\.?\b//ig;
+	$line =~ s/\bmainly\b//ig;
+	$line =~ s/\bmultipe\b//ig;
+	$line =~ s/\bmostly\b//ig;
+	$line =~ s/\brandom\b//ig;
+	$line =~ s/\bnative:?\b//ig;
+	$line =~ s/\bnumerous:?\b//ig;
+	$line =~ s/\bclient[s]?\b//ig;
+	$line =~ s/\bproject[s]?\b//ig;
+	$line =~ s/\bclientt[s]?\b//ig;
+	$line =~ s/\b(?:all|most|many|few) of\b//ig;
+	$line =~ s/\bmiscellaneous\b//ig;
+	$line =~ s/\bprogramming\b//ig;
+	$line =~ s/\bsoftware[s]?\b//ig;
+	$line =~ s/\bfor example\b//ig;
+	$line =~ s/\btwo\b//ig;
+	$line =~ s/\byet\b//ig;
+	$line =~ s/\bnone\b//ig;
+	$line =~ s/\betc\.?\b//ig;
+	$line =~ s/\bthe\b//ig;
+	$line =~ s/[(][)]//ig;
+
+	# normalize repo names
+	$line = lc($line);
+
+	# convert separators to space
+	$line =~ s![;/&,+]! !g;
+
+	# cleanup whitespace
+	$line =~ s/^\s+//;
+	$line =~ s/\s+$//;
+
+	$line =~ s/\s+-[)]//g;
+
+	# split
+	return map {
+		s/http:__/http:\/\//g;
+		s/^x$/xorg/i;
+		s/_/ /g;
+		s/[.*]$//;
+		s/^[()]+$//;
+		$_ eq '' ? () : $_ } split(' ', $line);
+}
+
 # uses first number, or first range
 sub normalize_number {
 	my $line = shift;
@@ -948,6 +1209,7 @@ sub normalize_number {
 	}
 	return $num;
 }
+
 
 # ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 # ......................................................................
@@ -1112,7 +1374,7 @@ my @questions =
 	  'hist' => \&normalize_os},
 	 {'title' => '22. What projects do you track (or download) using GIT '.
 	             '(or git web interface)?',
-	  'hist' => 1},
+	  'hist' => \&normalize_project},
 	 {'title' => '23. How many people do you collaborate with using GIT?',
 	  'hist' => 1},
 	 {'title' => '24. How big are the repositories that you work on?',
