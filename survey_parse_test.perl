@@ -1213,6 +1213,99 @@ sub normalize_number {
 	return $num;
 }
 
+# return ARRAY
+sub normalize_i18n {
+	my $line = shift;
+	my ($doc, $ui, $gui) = (0, 0, 0);
+	my @to_translate = ();
+
+	if ($line =~ /\b(?:none|nothing|N\/?A|I do not need anything|I don't need\b)/i) {
+		push @to_translate, 'Nothing';
+		#return @to_translate;
+	}
+
+	if ($line =~ /(?:man|help)[- ]?pages/i) {
+		push @to_translate, 'doc: man pages';
+		$doc = 1;
+	}
+	if ($line =~ /online help/i) {
+		push @to_translate, 'doc: online help';
+		$doc = 1;
+	}
+	if ($line =~ /(?:user'?s?[- ])?manual/i ||
+	    $line =~ /(?:user'?s?[- ])?guide/i) {
+		push @to_translate, 'doc: user\'s manual';
+		$doc = 1;
+	}
+	if ($line =~ /tutorials?/i) {
+		push @to_translate, 'doc: tutorials';
+		$doc = 1;
+	}
+	if ($line =~ /how[- ]?tos?/i) {
+		push @to_translate, 'doc: howto';
+		$doc = 1;
+	}
+	if ($line =~ /intro(?:ductory)? doc(?:s|umentation)/i) {
+		push @to_translate, 'doc: introductory docs';
+		$doc = 1;
+	}
+	if ($line =~ /documentation/i) {
+		$doc = 1;
+	}
+	push @to_translate, 'Documentation' if $doc;
+
+	if ($line =~ /errors?/i) {
+		push @to_translate, 'ui: error messages';
+		$ui = 1;
+	}
+	if ($line =~ /(?:program|CLI|user interface) messages/i ||
+	    $line =~ /(?:program|CLI|git) output/i ||
+	    $line =~ /program strings/i ||
+	    $line =~ /user(?: visible)? actions/i) {
+		push @to_translate, 'ui: command output';
+		$ui = 1;
+	}
+	if ($line =~ /help(?! pages)/i ||
+	    $line =~ /usage/i) {
+		push @to_translate, 'ui: help';
+		$ui = 1;
+	}
+	if ($line =~ /(?:user interface|interfaces|\bUI\b|CLI|porcelain|command line)/i) {
+		$ui = 1;
+	}
+	push @to_translate, 'User interface' if $ui;
+
+	if ($line =~ /git[- ]gui/i) {
+		push @to_translate, 'gui: git-gui';
+		$gui = 1;
+	}
+	if ($line =~ /gitk/i) {
+		push @to_translate, 'gui: gitk';
+		$gui = 1;
+	}
+	if ($line =~ /KGit/i) {
+		push @to_translate, 'gui: KGit';
+		$gui = 1;
+	}
+	if ($line =~ /qgit/i) {
+		push @to_translate, 'gui: qgit';
+		$gui = 1;
+	}
+	if ($line =~ /giggle/i) {
+		push @to_translate, 'gui: giggle';
+		$gui = 1;
+	}
+	if ($line =~ /GUIs?/) {
+		$gui = 1;
+	}
+	push @to_translate, 'GUI' if $gui;
+
+	if ($line =~ /(?:(?:the|web) site|homepage)/i) {
+		push @to_translate, 'Homepage'
+	}
+
+	return @to_translate;
+}
 
 # ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 # ......................................................................
@@ -1431,7 +1524,7 @@ my @questions =
 	 {'title' => '31. Is translating GIT required for wider adoption?',
 	  'codes' => [undef,'Yes','No','Somewhat']},
 	 {'title' => '32. What do you need translated?',
-	  'hist' => 1},
+	  'hist' => \&normalize_i18n},
 	 {'title' => '33. For what language do you need translation for?',
 	  'hist' => \&normalize_language},
 	 {'title' => '34. Overall, how happy are you with GIT?',
