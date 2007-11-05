@@ -1675,14 +1675,15 @@ my $line;
 my $ident = '';
 my $responses = 0;
 
-my ($hist_resp, $test_resp, $free_resp, $resp, $resp_only);
+my ($hist_resp, $test_resp, $free_resp, $resp, $resp_only, $cmp_old);
 
 my %datehist = ();
 
 GetOptions('hist|h=i' => \$hist_resp,
            'test|t=i' => \$test_resp,
            'free|f=i' => \$free_resp,
-           'only|o=i' => \$resp_only);
+           'only|o=i' => \$resp_only,
+           'compare|cmp', \$cmp_old);
 $resp = $hist_resp || $test_resp || $free_resp;
 
 foreach my $q (@questions) {
@@ -1858,6 +1859,7 @@ printf("  %-30s | %d\n", 'After',  $dates_after);
 
 print  "  ", '-' x 42, "\n";
 
+# ......................................................................
 
 my $nextsect = 1;
 
@@ -1889,7 +1891,7 @@ for (my $i = 1; $i <= $#questions; ++$i) {
 
 	my @answers = ();
 	print "\n";
-	if (exists $q->{'survey2006'}) {
+	if (exists $q->{'survey2006'} && $cmp_old) {
 		printf("  %-30s | %3s | %s\n", "Answer", "Old", "Count");
 		print  "  ", '-' x 48, "\n";
 
@@ -1916,7 +1918,7 @@ for (my $i = 1; $i <= $#questions; ++$i) {
 		}
 		printf("  %-30s | ", $name);
 
-		if (exists $q->{'survey2006'}) {
+		if (exists $q->{'survey2006'} && $cmp_old) {
 			if (exists $q->{'survey2006'}{$name}) {
 				printf("%-3d | ", $q->{'survey2006'}{$name});
 				$sum_old += $q->{'survey2006'}{$name};
@@ -1933,7 +1935,7 @@ for (my $i = 1; $i <= $#questions; ++$i) {
 		print "\n";
 	}
 
-	if (exists $q->{'survey2006'}) {
+	if (exists $q->{'survey2006'} && $cmp_old) {
 		print  "  ", '-' x 48, "\n";
 
 		printf("  %-30s |     | ", "Base");
