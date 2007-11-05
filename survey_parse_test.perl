@@ -1161,8 +1161,9 @@ sub normalize_number {
 	my $num = '';
 
 	# dealing with ranges
-	## 'n to m'
+	## 'n to m', 'between n and m'
 	$line =~ s/(\d+)\s+to\s+(\d+)/$1-$2/;
+	$line =~ s/between\s+(\d+)\s+and\s+(\d+)/$1-$2/;
 	## range to number
 	if ($line =~ /(\d+)\s*-\s*(\d+)/) {
 		$num = ($1 + $2)/2.0;
@@ -1174,6 +1175,7 @@ sub normalize_number {
 	$line =~ s/(\d+)m/${1}000000/;
 
 	# numbers written as text (in English)
+	$line =~ s/\bnone\b/0/i;
 	$line =~ s/\bone\b/1/i;
 	$line =~ s/\btwo\b/2/i;
 	$line =~ s/\bthree\b/3/i;
@@ -1189,6 +1191,7 @@ sub normalize_number {
 		$num = $1;
 	}
 
+	#return $num;
 	# quantize
 	if ($num ne '') {
 		if ($num < 9) {
@@ -1236,8 +1239,6 @@ my @sections =
 	  'start' => 53},
 	 {'title' => 'Open forum',
 	  'start' => 62});
-
-
 
 
 my @questions =
@@ -1376,7 +1377,7 @@ my @questions =
 	             '(or git web interface)?',
 	  'hist' => \&normalize_project},
 	 {'title' => '23. How many people do you collaborate with using GIT?',
-	  'hist' => 1},
+	  'hist' => \&normalize_number},
 	 {'title' => '24. How big are the repositories that you work on?',
 	  'freeform' => 1},
 	 {'title' => '25. How many different projects do you manage using GIT?',
