@@ -1876,10 +1876,12 @@ for (my $i = 1; $i <= $#questions; ++$i) {
 		$nextsect++;
 	}
 
+	# question
 	print "\n$q->{'title'}\n";
 
 	next QUESTION if ($resp_only && $resp_only != $i);
 
+	# if there are no histogram
 	unless (exists $q->{'histogram'} &&
 	        scalar $q->{'histogram'}) {
 		print "\n".
@@ -1889,6 +1891,7 @@ for (my $i = 1; $i <= $#questions; ++$i) {
 		next QUESTION;
 	}
 
+	# table header
 	my @answers = ();
 	print "\n";
 	if (exists $q->{'survey2006'} && $cmp_old) {
@@ -1908,6 +1911,7 @@ for (my $i = 1; $i <= $#questions; ++$i) {
 		@answers = sort keys %{$q->{'histogram'}};
 	}
 
+	# table body
 	my ($sum_old, $sum) = (0,0);
 	foreach my $a (@answers) {
 		my $name;
@@ -1935,6 +1939,7 @@ for (my $i = 1; $i <= $#questions; ++$i) {
 		print "\n";
 	}
 
+	# table footer
 	if (exists $q->{'survey2006'} && $cmp_old) {
 		print  "  ", '-' x 48, "\n";
 
