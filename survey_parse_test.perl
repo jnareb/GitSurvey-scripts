@@ -167,7 +167,7 @@ sub normalize_age {
 	# extract
 	$age =~ s/^[^0-9]*([0-9]+).*$/$1/;
 
-	return $age;
+	#return $age;
 
 	# quantize
 	if ($age < 18) {
@@ -1307,6 +1307,239 @@ sub normalize_i18n {
 	return @to_translate;
 }
 
+# ----------------------------------------------------------------------
+
+# 'text' or 'wiki'
+my $format = 'wiki';
+
+# MoinMoin wiki table style
+my $tablestyle = '';
+my %rowstyle =
+	('th'  => 'font-weight: bold; background-color: #ffffcc;',
+	 'row' => undef,
+	 'footer' => 'font-weight: bold; font-style: italic; background-color: #ccffff;'
+	);
+
+sub fmt_section_header {
+	my $title = shift;
+
+	if ($format eq 'wiki') {
+		return "\n\n== $title ==\n";
+	}
+	return "\n\n$title\n" .
+	       '~' x length($title) . "\n";
+}
+
+sub fmt_question_title {
+	my $title = shift;
+
+	if ($format eq 'wiki') {
+		return "\n=== $title ===\n";
+	}
+	return "\n$title\n";
+}
+
+sub fmt_todo {
+	my @lines = @_;
+
+	print "\n";
+	foreach my $line (@lines) {
+		print "  $line\n";
+	}
+	print "\n";
+}
+
+# . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+sub fmt_th {
+	my $title = shift || "Answer";
+
+	if ($format eq 'wiki') {
+		#my $style = join(' ', grep { defined $_ && $_ ne '' }
+		#                 $tablestyle, $rowstyle{'th'});
+		my $style = defined($rowstyle{'th'}) ?
+		            "<rowstyle=\"$rowstyle{'th'}\">" : '';
+
+		return "## table begin\n" .
+		       sprintf("||$style %-30s || %s ||\n", $title, "Count");
+	}
+
+	return sprintf("  %-30s | %s\n", $title, "Count") .
+	               "  " . ('-' x 42) . "\n";
+}
+
+sub fmt_th_old {
+	my $title = shift || "Answer";
+
+	if ($format eq 'wiki') {
+		#my $style = join(' ', grep { defined $_ && $_ ne '' }
+		#                 $tablestyle, $rowstyle{'th'});
+		my $style = defined($rowstyle{'th'}) ?
+		            "<rowstyle=\"$rowstyle{'th'}\">" : '';
+
+		return "## table begin\n" .
+		       sprintf("||$style %-30s || %3s || %s ||\n",
+		               $title, "Old", "Count");
+	}
+
+	return sprintf("  %-30s | %3s | %s\n", $title, "Old", "Count") .
+	               "  " . ('-' x 48) . "\n";
+}
+
+sub fmt_th_percent {
+	my $title = shift || "Answer";
+
+	if ($format eq 'wiki') {
+		#my $style = join(' ', grep { defined $_ && $_ ne '' }
+		#                 $tablestyle, $rowstyle{'th'});
+		my $style = defined($rowstyle{'th'}) ?
+		            "<rowstyle=\"$rowstyle{'th'}\">" : '';
+
+		return "## table begin\n" .
+		       sprintf("||$style %-30s || %5s || %-5s ||\n",
+		               $title, "Count", "Perc.");
+	}
+
+	return sprintf("  %-30s | %5s | %-5s\n", $title, "Count", "Perc.") .
+	               "  " . ('-' x 47) . "\n";
+}
+
+
+sub fmt_row {
+	my ($name, $count) = @_;
+
+	if ($format eq 'wiki') {
+		my $style = defined($rowstyle{'row'}) ?
+		            "<rowstyle=\"$rowstyle{'row'}\">" : '';
+		return sprintf("||%s %-30s || %-5s ||\n",
+		               $style, $name, $count);
+	}
+
+	return sprintf("  %-30s | %s\n", $name, $count);
+}
+
+sub fmt_row_old {
+	my ($name, $count, $old_count) = @_;
+
+	$count = defined($count) ? $count : '';
+
+	if ($format eq 'wiki') {
+		my $style = defined($rowstyle{'row'}) ?
+		            "<rowstyle=\"$rowstyle{'row'}\">" : '';
+		if (defined($old_count) && $old_count ne '') {
+			return sprintf("||%s %-30s || %-3d || %-5s ||\n",
+			               $style, $name, $old_count, $count);
+		} else {
+			return sprintf("||%s %-30s ||     || %-5s ||\n",
+			               $style, $name, $count);
+		}
+	}
+
+	if (defined($old_count) && $old_count ne '') {
+		return sprintf("  %-30s | %-3d | %s\n",
+		               $name, $old_count, $count);
+	} else {
+		return sprintf("  %-30s |     | %s\n",
+		               $name, $count);
+	}
+}
+
+sub fmt_row_percent {
+	my ($name, $count, $perc) = @_;
+
+	if ($format eq 'wiki') {
+		my $style = defined($rowstyle{'row'}) ?
+		            "<rowstyle=\"$rowstyle{'row'}\">" : '';
+		return sprintf("||%s %-30s || %5d || %4.1f%% ||\n",
+		               $style, $name, $count, $perc);
+	}
+
+	return sprintf("  %-30s | %-5d | %4.1f%%\n",
+	               $name, $count, $perc);
+}
+
+
+sub fmt_footer {
+	my ($base, $responses, $sum) = @_;
+
+	if (!defined($base) && $format ne 'wiki') {
+		return "  " . ('-' x 42) . "\n";
+	}
+
+	if ($format eq 'wiki') {
+		my $style = defined($rowstyle{'footer'}) ?
+		            "<rowstyle=\"$rowstyle{'footer'}\">" : '';
+
+		return sprintf("||%s %-30s || %-5s ||\n",
+		               $style, "Base", "$base / $responses") .
+		       sprintf("||%s %-30s || %-5s ||\n",
+		               $style, "Total (sum)", $sum) .
+		       "## table end\n\n";
+	}
+
+	return "  " . ('-' x 42) . "\n" .
+	       sprintf("  %-30s | ", "Base") .
+	       "$base / $responses\n" .
+
+	       sprintf("  %-30s | ", "Total (sum)") .
+	       "$sum\n\n";
+
+}
+
+sub fmt_footer_old {
+	my ($base, $responses, $sum, $sum_old) = @_;
+
+	if (!defined($base) && $format ne 'wiki') {
+		return "  " . ('-' x 48) . "\n";
+	}
+
+	if ($format eq 'wiki') {
+		my $style = defined($rowstyle{'footer'}) ?
+		            "<rowstyle=\"$rowstyle{'footer'}\">" : '';
+
+		return sprintf("||%s %-30s ||     || %-5s ||\n",
+		               $style, "Base", "$base / $responses") .
+		       sprintf("||%s %-30s || %-3d || %-5d ||\n",
+		               $style, "Total (sum)", $sum_old, $sum) .
+		       "## table end\n\n";
+	}
+
+	return "  " . ('-' x 48) . "\n" .
+	       sprintf("  %-30s |     | ", "Base") .
+	       "$base / $responses\n" .
+
+	       sprintf("  %-30s | %-3d | %-3d\n\n",
+	               "Total (sum)", $sum_old, $sum);
+}
+
+sub fmt_footer_percent {
+	my ($base, $responses, $sum) = @_;
+
+	if (!defined($base) && $format ne 'wiki') {
+		return "  " . ('-' x 47) . "\n";
+	}
+
+	if ($format eq 'wiki') {
+		return "## table end\n\n" unless defined($base);
+
+		my $style = defined($rowstyle{'footer'}) ?
+		            "<rowstyle=\"$rowstyle{'footer'}\">" : '';
+
+		return sprintf("||%s %-30s ||<-2> %5d / %-5d ||\n",
+		               $style, "Base", $base, $responses) .
+		       sprintf("||%s %-30s ||<-2> %5d         ||\n",
+		               $style, "Total (sum)", $sum) .
+		       "## table end\n\n";
+	}
+
+	return "  " . ('-' x 47) . "\n" .
+	       sprintf("  %-30s | %5d / %-5d\n", "Base",
+	               $base, $responses) .
+	       sprintf("  %-30s | %5d\n", "Total (sum)", $sum) .
+	       "\n";
+}
+
+
 # ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 # ......................................................................
 
@@ -1810,28 +2043,25 @@ foreach my $date (sort keys %datehist) {
 	print "  ";
 	if (Date_Cmp($ch_date, '2007-08-20') < 0) {
 		$dates_before += $datehist{$date};
-		print "<";
+		print "<" if DEBUG;
 	} elsif (Date_Cmp($ch_date, '2007-09-10') > 0) {
 		$dates_after  += $datehist{$date};
-		print ">";
+		print ">" if DEBUG;
 	} else {
 		$dates_during += $datehist{$date};
-		print "=";
+		print "=" if DEBUG;
 	}
 
-	print " $date: $datehist{$date}\n";
+	print " $date: $datehist{$date}\n" if DEBUG;
 }
 
 print "\n";
-printf("  %-30s | %s\n", "Date", "Count");
-print  "  ", '-' x 42, "\n";
-
-printf("  %-30s | %d\n", 'Before', $dates_before);
-printf("  %-30s | %d\n", 'During', $dates_during);
-printf("  %-30s | %d\n", 'After',  $dates_after);
-
-print  "  ", '-' x 42, "\n";
-
+print fmt_th_percent("Date (strict)");
+print fmt_row_percent("Before", $dates_before, 100.0*$dates_before/$responses);
+print fmt_row_percent("During", $dates_during, 100.0*$dates_during/$responses);
+print fmt_row_percent("After",  $dates_after,  100.0*$dates_after/$responses);
+print fmt_footer_percent();
+print "\n";
 
 ($dates_before, $dates_during, $dates_after) = (0,0,0);
 $date_start = ParseDate('2007-08-19');
@@ -1850,14 +2080,12 @@ foreach my $date (sort keys %datehist) {
 }
 
 print "\n";
-printf("  %-30s | %s\n", "Date", "Count");
-print  "  ", '-' x 42, "\n";
-
-printf("  %-30s | %d\n", 'Before', $dates_before);
-printf("  %-30s | %d\n", 'During', $dates_during);
-printf("  %-30s | %d\n", 'After',  $dates_after);
-
-print  "  ", '-' x 42, "\n";
+print fmt_th_percent("Date (extended range)");
+print fmt_row_percent("Before", $dates_before, 100.0*$dates_before/$responses);
+print fmt_row_percent("During", $dates_during, 100.0*$dates_during/$responses);
+print fmt_row_percent("After",  $dates_after,  100.0*$dates_after/$responses);
+print fmt_footer_percent();
+print "\n";
 
 # ......................................................................
 
@@ -1870,24 +2098,20 @@ for (my $i = 1; $i <= $#questions; ++$i) {
 	# section header
 	if (exists $sections[$nextsect] &&
 	    $sections[$nextsect]{'start'} <= $i) {
-		print "\n\n" . $sections[$nextsect]{'title'} . "\n" .
-		      '~' x length($sections[$nextsect]{'title'}) .
-		      "\n";
+		print fmt_section_header($sections[$nextsect]{'title'});
 		$nextsect++;
 	}
 
 	# question
-	print "\n$q->{'title'}\n";
+	print fmt_question_title($q->{'title'});
 
 	next QUESTION if ($resp_only && $resp_only != $i);
 
 	# if there are no histogram
 	unless (exists $q->{'histogram'} &&
 	        scalar $q->{'histogram'}) {
-		print "\n".
-		      "  ".($q->{'hist'} ? 'TO TABULARIZE' : 'TO DO')."\n".
-		      "  $q->{'base'} / $responses non-empty responses\n".
-		      "\n";
+		print fmt_todo($q->{'hist'} ? 'TO TABULARIZE' : 'TO DO',
+		               "$q->{'base'} / $responses non-empty responses");
 		next QUESTION;
 	}
 
@@ -1895,8 +2119,7 @@ for (my $i = 1; $i <= $#questions; ++$i) {
 	my @answers = ();
 	print "\n";
 	if (exists $q->{'survey2006'} && $cmp_old) {
-		printf("  %-30s | %3s | %s\n", "Answer", "Old", "Count");
-		print  "  ", '-' x 48, "\n";
+		print fmt_th_old();
 
 		if (exists $q->{'codes'}) {
 			@answers = sort keys %{$q->{'histogram'}};
@@ -1905,8 +2128,11 @@ for (my $i = 1; $i <= $#questions; ++$i) {
 			                         keys %{$q->{'survey2006'}}));
 		}
 	} else {
-		printf("  %-30s | %s\n", "Answer", "Count");
-		print  "  ", '-' x 42, "\n";
+		if (exists $q->{'codes'}) {
+			print fmt_th_percent();
+		} else {
+			print fmt_th();
+		}
 
 		@answers = sort keys %{$q->{'histogram'}};
 	}
@@ -1920,42 +2146,34 @@ for (my $i = 1; $i <= $#questions; ++$i) {
 		} else {
 			$name = $a;
 		}
-		printf("  %-30s | ", $name);
+
+		$sum += $q->{'histogram'}{$a}
+			if (exists $q->{'histogram'}{$a});
 
 		if (exists $q->{'survey2006'} && $cmp_old) {
-			if (exists $q->{'survey2006'}{$name}) {
-				printf("%-3d | ", $q->{'survey2006'}{$name});
-				$sum_old += $q->{'survey2006'}{$name};
-			} else {
-				print "    | ";
-			}
-		}
+			$sum_old += $q->{'survey2006'}{$name}
+				if (exists $q->{'survey2006'}{$name});
 
-		if (exists $q->{'histogram'}{$a}) {
-			print $q->{'histogram'}{$a};
-			$sum += $q->{'histogram'}{$a};
+			print fmt_row_old($name, $q->{'histogram'}{$a},
+			                  $q->{'survey2006'}{$name})
+		} elsif (exists $q->{'codes'}) {
+			print fmt_row_percent($name, $q->{'histogram'}{$a},
+			                      100.0*$q->{'histogram'}{$a} / $responses);
+		} else {
+			print fmt_row($name, $q->{'histogram'}{$a});
 		}
-
-		print "\n";
 	}
 
 	# table footer
 	if (exists $q->{'survey2006'} && $cmp_old) {
-		print  "  ", '-' x 48, "\n";
-
-		printf("  %-30s |     | ", "Base");
-		print "$q->{'base'} / $responses\n";
-
-		printf("  %-30s | %-3d | %-3d\n\n",
-		       "Total (sum)", $sum_old, $sum);
+		print fmt_footer_old($q->{'base'}, $responses,
+		                     $sum, $sum_old);
+	} elsif (exists $q->{'codes'}) {
+		print fmt_footer_percent($q->{'base'}, $responses,
+		                         $sum);
 	} else {
-		print  "  ", '-' x 42, "\n";
-
-		printf("  %-30s | ", "Base");
-		print "$q->{'base'} / $responses\n";
-
-		printf("  %-30s | ", "Total (sum)");
-		print "$sum\n\n";
+		print fmt_footer($q->{'base'}, $responses,
+		                 $sum);
 	}
 }
 
