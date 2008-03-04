@@ -1916,7 +1916,7 @@ GetOptions('hist|h=i' => \$hist_resp,
            'test|t=i' => \$test_resp,
            'free|f=i' => \$free_resp,
            'only|o=i' => \$resp_only,
-           'compare|cmp', \$cmp_old);
+           'compare|cmp' => \$cmp_old);
 $resp = $hist_resp || $test_resp || $free_resp;
 
 foreach my $q (@questions) {
