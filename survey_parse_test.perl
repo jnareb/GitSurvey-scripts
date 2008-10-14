@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# survey_parse - parse results of syrvey.net.nz survey in CSV format
+# survey_parse - parse results of survey.net.nz survey in CSV format
 #
 # (C) 2007, Jakub Narebski
 #
