@@ -38,9 +38,9 @@ binmode STDOUT, ':utf8';
 
 # ======================================================================
 # ----------------------------------------------------------------------
-my $filename = '/tmp/jnareb/Survey results Sep 16, 09.csv';
-my $respfile = '/tmp/jnareb/GitSurvey2009.responses.storable';
-my $statfile = '/tmp/jnareb/GitSurvey2009.stats.storable';
+my $filename = 'Survey results Sep 16, 09.csv';
+my $respfile = 'GitSurvey2009.responses.storable';
+my $statfile = 'GitSurvey2009.stats.storable';
 
 my $resp_tz = "CET"; # timezone of responses date and time
 
@@ -1334,6 +1334,27 @@ sub delete_sections {
 }
 
 # ======================================================================
+# ----------------------------------------------------------------------
+
+# print histogram of date of response, 
+# in format suitable for datafile e.g for gnuplot
+sub print_date_hist {
+	my $survey_data = shift;
+
+
+	print "# 1:date 2:responses\n";
+	my $num = 0;
+ DATE:
+	foreach my $date (sort keys %{$survey_data->{'histogram'}{'date'}}) {
+		print "$date $survey_data{'histogram'}{'date'}{$date}\n";
+		$num += $survey_data{'histogram'}{'date'}{$date};
+	}
+	print "\n";
+	
+	print "# responses with date field: $num\n\n";
+}
+
+# ======================================================================
 # ======================================================================
 # ======================================================================
 # MAIN
@@ -1427,15 +1448,6 @@ for (my $i = 0; $i <= $survey_data{'nquestions'}; $i++) {
 }
 print "==============================\n\n";
 
-#my $sum = 0;
-#DATE:
-#foreach my $date (sort keys %{$survey_data{'histogram'}{'date'}}) {
-#	print "$date $survey_data{'histogram'}{'date'}{$date}\n";
-#	$sum += $survey_data{'histogram'}{'date'}{$date};
-#}
-#print "\n";
-#
-#print "responses with date field: $sum\n\n";
 
 #QUESTION:
 #for (my $qno = 1; $qno <= $survey_data{'nquestions'}; $qno++) {
