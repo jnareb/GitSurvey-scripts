@@ -18,10 +18,13 @@ use warnings;
 use Encode;
 use Text::CSV;
 use Text::Wrap;
+use Getopt::Long;
+use List::Util qw(max maxstr min minstr);
+#use File::Basename;
+
 use Date::Manip;
 use Locale::Country;
-use Getopt::Long;
-#use File::Basename;
+use Statistics::Descriptive;
 
 use constant DEBUG => 0;
 
@@ -36,11 +39,15 @@ binmode STDOUT, ':utf8';
 # ======================================================================
 # ----------------------------------------------------------------------
 my $filename = '/tmp/jnareb/Survey results Sep 16, 09.csv';
+my $respfile = '/tmp/jnareb/GitSurvey2009.responses.storable';
+my $statfile = '/tmp/jnareb/GitSurvey2009.stats.storable';
+
 my $resp_tz = "CET"; # timezone of responses date and time
+
 
 # Parse data (given hardcoded file)
 sub parse_data {
-	my $survinfo = shift;
+	my ($survinfo, $responses) = @_;
 
 	my $csv = Text::CSV->new({
 		binary => 1, eol => $/,
@@ -52,7 +59,7 @@ sub parse_data {
 	my $line;
 	my @columns = ();
 
-	open my $fh, '<', 
+	open my $fh, '<', $filename
 		or die "Could not open file '$filename': $!";
 
 	# ........................................
@@ -66,6 +73,7 @@ sub parse_data {
 	}
 	@columns = $csv->fields();
 	splice(@columns,0,4); # first 4 columns are informational
+	my $nfields = @columns;
 
 	# calculate question to starting column number
 	my $qno = 0;
@@ -82,18 +90,26 @@ sub parse_data {
 
 	# ........................................
 	# CSV lines
-	my $responses = [];
+	#my $responses = [];
 	my ($respno, $respdate, $resptime, $channel);
 
  RESPONSE:
-	while (my $row = $csv->getline($fh)) {
+	while (1) {
+		my $row = $csv->getline($fh);
+		last RESPONSE if (!defined $row && $csv->eof());
+
 		unless (defined $row) {
 			my $err = $csv->error_input();
 
 			print STDERR "$.: getline() failed on argument: $err\n";
 			$csv->error_diag(); # void context: print to STDERR
-			next RESPONSE unless $csv->eof();
-			last RESPONSE; #  if $csv->eof();
+			last RESPONSE; # error would usually be not recoverable
+		}
+
+		unless ($nfields == (scalar(@$row) - 4)) {
+			print STDERR "$.: number of columns doesn't match: ".
+			             "$nfields != ".(scalar @$row)."\n";
+			last RESPONSE; # error would usually be not recoverable
 		}
 
 		my $resp = [];
@@ -107,9 +123,9 @@ sub parse_data {
 
 		$resp->[0] = {
 			'respondent number' => $respno,
-			#'date' => $respdate,
-			#'time' => $resptime,
-			'date' => ParseDate("$respdate $resptime $resp_tz"),
+			'date' => $respdate,
+			'time' => $resptime,
+			'parsed_date' => ParseDate("$respdate $resptime $resp_tz"),
 			'channel' => $channel
 		};
 
@@ -152,6 +168,7 @@ sub parse_data {
 				};
 				# single choice with other
 				if ($qinfo->{'other'} && $columns[$col+1] ne '') {
+					$resp->[$qno]{'contents'} = $#{$qinfo->{'codes'}};
 					$resp->[$qno]{'other'} = $columns[$col+1];
 				}
 				$resp->[$qno]{'skipped'} = 1
@@ -166,15 +183,21 @@ sub parse_data {
 					'contents' => []
 				};
 				for (my $j = 0; $j < @{$qinfo->{'codes'}}; $j++) {
-					next unless ($columns[$col+$j] ne '');
-					push @{$resp->[$qno]{'contents'}}, $columns[$col+$j];
+					my $value = $columns[$col+$j];
+					next unless (defined $value && $value ne '');
+					if ($qinfo->{'other'} && $j == $#{$qinfo->{'codes'}}) {
+						$value = "".($j+1); # number stringified, not value !!!
+					}
+					push @{$resp->[$qno]{'contents'}}, $value;
 					$skipped = 0;
 				}
 				# multiple choice with other
-				if ($qinfo->{'other'}) {
+				if ($qinfo->{'other'} &&
+				    $columns[$col+$#{$qinfo->{'codes'}}] ne '') {
 					$resp->[$qno]{'other'} =
 						$columns[$col+$#{$qinfo->{'codes'}}];
 				}
+				$resp->[$qno]{'skipped'} = 1 if ($skipped);
 
 			} elsif ($qinfo->{'columns'}) {
 				# matrix
@@ -184,21 +207,223 @@ sub parse_data {
 					'contents' => []
 				};
 				for (my $j = 0; $j < @{$qinfo->{'codes'}}; $j++) {
-					next unless ($columns[$col+$j] ne '');
-					push @{$resp->[$qno]{'contents'}}, $columns[$col+$j];
+					my $value = $columns[$col+$j];
+					next unless (defined $value && $value ne '');
+					push @{$resp->[$qno]{'contents'}}, $value;
 					$skipped = 0;
 				}
+				$resp->[$qno]{'skipped'} = 1 if ($skipped);
+
 			} # end if-elsif ...
 
 		} # end for QUESTION
 
-		$responses->[$respno] = $resp;
+		#$responses->[$respno] = $resp
+		push @$responses, $resp
+			if (defined $resp && ref($resp) eq 'ARRAY' && @{$resp} > 0);
 
 	} # end while RESPONSE
 
 	return $responses;
 }
 
+sub parse_or_retrieve_data {
+	my $survey_data = shift;
+	my $responses = [];
+	local $| = 1; # autoflush
+
+	if (! -f $respfile) {
+		print STDERR "parsing '$filename'... ";
+		parse_data($survey_data, $responses);
+		print STDERR "(done)\n";
+
+		print STDERR "storing in '$respfile'... ";
+		store($responses, $respfile);
+		print STDERR "(done)\n";
+	} else {
+		print STDERR "retrieving from '$respfile'... ";
+		$responses = retrieve($respfile);
+		print STDERR "(done)\n";
+	}
+	return wantarray ? @$responses : $responses;
+}
+
+# ----------------------------------------------------------------------
+# Make statistics
+
+# Initialize structures for histograms of answers
+sub prepare_hist {
+	my $survey_data = shift;
+
+	Locale::Country::alias_code('uk' => 'gb');
+
+ QUESTION:
+	for (my $qno = 1; $qno <= $survey_data->{'nquestions'}; $qno++) {
+		my $q = $survey_data->{"Q$qno"};
+		next unless (defined $q);
+		next if (exists $q->{'histogram'});
+
+		if (exists $q->{'columns'}) {
+			# matrix
+			my $ncols = scalar @{$q->{'columns'}};
+			$q->{'histogram'} = {
+				map { $_ => [ (0) x $ncols ] } @{$q->{'codes'}}
+			}
+		} elsif (exists $q->{'codes'}) {
+			$q->{'histogram'} = {
+				map { $_ => 0 } @{$q->{'codes'}}
+			}
+		} elsif (ref($q->{'hist'}) eq 'CODE') {
+			$q->{'histogram'} = {};
+		}
+	}
+}
+
+# Generate histograms of answers and responses
+sub make_hist {
+	my ($survey_data, $responses) = @_;
+	my $nquestions = $survey_data->{'nquestions'};
+
+	# ...........................................
+	# Generate histograms of answers
+ RESPONSE:
+	foreach my $resp (@$responses) {
+
+	QUESTION:
+		for (my $qno = 1; $qno <= $nquestions; $qno++) {
+			my $qinfo = $survey_data->{"Q$qno"};
+			next unless (defined $qinfo);
+
+			my $qresp = $resp->[$qno];
+
+			# count non-empty / skipped responses
+			if ($qresp->{'skipped'}) {
+				add_to_hist($qinfo, 'skipped');
+			} else {
+				add_to_hist($qinfo, 'base');
+			}
+
+			# skip non-histogrammed questions, and skipped responses
+			next unless (exists $qinfo->{'histogram'});
+			next if ($qresp->{'skipped'});
+
+			# (perhaps replace this if-elsif chain by dispatch)
+			if ($qresp->{'type'} eq 'single-choice') {
+				add_to_hist($qinfo->{'histogram'},
+										$qinfo->{'codes'}[$qresp->{'contents'}-1]);
+				# something to do with other, if it is present, and used
+				# ...
+			} elsif ($qresp->{'type'} eq 'multiple-choice') {
+				add_to_hist($qinfo->{'histogram'},
+										map { $qinfo->{'codes'}[$_-1] } @{$qresp->{'contents'}});
+				# something to do with other, if it is present, and used
+				# ...
+			} elsif ($qresp->{'type'} eq 'matrix') {
+				for (my $i = 0; $i < @{$qresp->{'contents'}}; $i++) {
+					my $rowname = $qinfo->{'codes'}[$i];
+					my $column  = $qresp->{'contents'}[$i];
+					$qinfo->{'histogram'}{$rowname}[$column-1]++;
+				}
+			} elsif ($qresp->{'type'} eq 'oneline') {
+				add_to_hist($qinfo->{'histogram'}, $qresp->{'contents'});
+			}
+
+		}
+
+	}
+
+
+	# ...........................................
+	# Generate histogram of responsers (responses)
+	$survey_data->{'histogram'}{'skipped'} =
+		{ map { $_ => 0 } 0..$nquestions };
+	$survey_data->{'histogram'}{'date'} = {};
+
+ RESPONSE:
+	foreach my $resp (@$responses) {
+		my $nskipped = scalar grep { $_->{'skipped'} } @{$resp};
+		$resp->[0]{'nskipped'} = $nskipped; # !!!
+		#print "$resp->[0]{'respondent number'} skipped all questions\n"
+		#	if $nskipped == $survey_data{'nquestions'};
+		add_to_hist($survey_data->{'histogram'}{'skipped'}, $nskipped);
+		add_to_hist($survey_data->{'histogram'}{'date'}, $resp->[0]{'date'})
+			if (defined $resp->[0]{'date'});
+	}
+
+}
+
+sub make_nskipped_stat {
+	my ($survey_data, $responses, $stat) = @_;
+
+ RESPONSE:
+	foreach my $resp (@$responses) {
+		my $nskipped =
+			defined $resp->[0]{'nskipped'} ? $resp->[0]{'nskipped'} :
+			scalar grep { $_->{'skipped'} } @{$resp};
+
+		$stat->add_data($nskipped);
+	}
+}
+
+sub make_or_retrieve_hist {
+	my ($survey_data, $responses) = @_;
+	local $| = 1; # autoflush
+
+	if (! -f $statfile) {
+		print STDERR "generating statistics... ";
+		prepare_hist($survey_data);
+		make_hist($survey_data, $responses);
+		print STDERR "(done)\n";
+
+		print STDERR "storing in '$statfile'... ";
+		store(extract_hist($survey_data), $statfile);
+		print STDERR "(done)\n";
+	} else {
+		print STDERR "retrieving from '$statfile'... ";
+		my $survey_hist = retrieve($statfile);
+		union_hash($survey_data, $survey_hist);
+		print STDERR "(done)\n";
+	}
+	return wantarray ? %$survey_data : $survey_data;
+
+}
+
+# extract histogram part of survey data (survey info)
+sub extract_hist {
+	my $src = shift;
+	my $dst = {};
+
+	foreach my $key (keys %$src) {
+		my $val = $src->{$key};
+
+		if ($key =~ m/^(?: skipped | base | histogram )/x) {
+			$dst->{$key} = $val;
+		} elsif (ref($val) eq 'HASH') {
+			$val = extract_hist($val);
+			$dst->{$key} = $val if (%$val);
+		}
+	}
+
+	return $dst;
+}
+
+sub union_hash {
+	my ($base, $overlay) = @_;
+
+	foreach my $key (keys %$overlay) {
+		my $val = $overlay->{$key};
+
+		if (ref($val) eq 'HASH'  &&
+		    exists $base->{$key} &&
+		    ref($base->{$key}) eq 'HASH') {
+			union_hash($base->{$key}, $val);
+		} else {
+			$base->{$key} = $val;
+		}
+	}
+}
+
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # ----------------------------------------------------------------------
 # Create histogram
 
@@ -233,11 +458,88 @@ sub uniq (@) {
 # ----------------------------------------------------------------------
 # Normalize input data
 
+my @country_names = all_country_names();
 sub normalize_country {
 	my $country = shift;
 
+	# strip leading and trailing whitespace
+	$country =~ s/^\s+//;
+	$country =~ s/\s+$//;
+
+	# strip prefix
+	$country =~ s/^The //i;
+
+	# strip extra info
+	$country =~ s/, Europe\b//i;
+	$country =~ s/, but .*$//i;
+	$country =~ s/, UK\b//i;
+	$country =~ s/, the\b//i;
+	$country =~ s/ \. shanghai\b//i;
+	$country =~ s/^Kharkiv, //i;
+	$country =~ s/^Victoria, //i;
+	$country =~ s/ \(Holland\)//i;
+	$country =~ s/ R\.O\.C\.//i;
+	$country =~ s/^\.([a-z][a-z])$/$1/i;
+	$country =~ s/[!?]+$//;
+
+	# correct (or normalize) spelling
+	$country =~ s/\b(?:Amerrica|Ameircia)\b/America/i;
+	$country =~ s/\bBrasil\b/Brazil/i;
+	$country =~ s/\bBrazul\b/Brazil/i;
+	$country =~ s/\bChezh Republic\b/Czech Republic/i;
+	$country =~ s/\bCzechia\b/Czech Republic/i;
+	$country =~ s/\bChinese\b/China/i;
+	$country =~ s/\bEnglang\b/England/i;
+	$country =~ s/\bFinnland\b/Finland/i;
+	$country =~ s/\bGerman[u]?\b/Germany/i;
+	$country =~ s/\bGernany\b/Germany/i;
+	$country =~ s/\bKyrgyzstab\b/Kyrgyzstan/i;
+	$country =~ s/\bLithuani\b/Lithuania/i;
+	$country =~ s/\bMacedoni\b/Macedonia/i;
+	$country =~ s/\bM.*xico\b/Mexico/i;
+	$country =~ s/\bMolodva\b/Moldova/i;
+	$country =~ s/\bSapin\b/Spain/i;
+	$country =~ s/^Serbia$/Serbia and Montenegro/i;
+	$country =~ s/\b(?:Sitzerland|Swtzerland)\b/Switzerland/i;
+	$country =~ s/\bSwedeb\b/Sweden/i;
+	$country =~ s/\bUnited Kindom\b/United Kingdom/i;
+	$country =~ s/\bViet Nam\b/Vietnam/i;
+	$country =~ s/\bZealandd\b/Zealand/i;
+	$country =~ s/\bUSUnited States\b/United States/i;
+	$country =~ s/\bUnited? States?\b/United States/i;
+	# many names of United States of America
+	$country =~ s/^U\.S(?:|\.|\.A|\.A\.)$/USA/;
+	$country =~ s/^US of A$/USA/;
+	$country =~ s/^USofA$/USA/;
+
+	# local name to English
+	$country =~ s/\bDeutschland\b/Germany/i;
+
+	# other fixes and expansions
+	$country =~ s/^PRC$/China/i; # People's Republic of China
+	$country =~ s/^U[Kk]$/United Kingdom/;
+	$country =~ s/ \(Rep. of\)/, Republic of/;
+	$country =~ s/\b(?:Unites|Unitered)\b/United/i;
+	$country =~ s/\bStatus\b/States/i;
+
+	# province, state or city to country
+	$country =~ s/^.*(?:England|Scotland|Wales).*$/United Kingdom/i;
+	$country =~ s/^Northern Ireland$/United Kingdom/i;
+	$country =~ s/\bTexas\b/USA/i;
+	$country =~ s/\bCalgary\b/Canada/i;
+	$country =~ s/\bAdelaide\b/Australia/i;
+	$country =~ s/\bAmsterdam\b/Netherlands/i;
+	$country =~ s/\bBasque country\b/Spain/i;
+	$country =~ s/\bCatalonia\b/Spain/i;
+
+	# convert to code and back to country, normalizing country name
+	# (or going from code to country)
 	my $code = country2code($country) || $country;
 	$country = code2country($code)    || $country;
+
+	unless (scalar grep { $_ eq $country } @country_names) {
+		$country .= '?';
+	}
 
 	return ucfirst($country);
 }
@@ -246,7 +548,9 @@ sub normalize_age {
 	my $age = shift;
 
 	# extract
-	$age =~ s/^[^0-9]*([0-9]+).*$/$1/;
+	unless ($age =~ s/^[^0-9]*([0-9]+).*$/$1/) {
+		return 'NaN';
+	}
 
 	#return $age;
 
@@ -271,6 +575,138 @@ sub normalize_age {
 
 # ----------------------------------------------------------------------
 # Format output
+
+# 'text' or 'wiki' (actually anything or 'wiki')
+my $format = 'text'; # default output format
+
+# MoinMoin wiki table style
+my $tablestyle = '';
+my %rowstyle =
+	('th'  => 'font-weight: bold; background-color: #ffffcc;',
+	 'row' => undef,
+	 'footer' => 'font-weight: bold; font-style: italic; background-color: #ccffff;'
+	);
+
+sub fmt_section_header {
+	my $title = shift;
+
+	if ($format eq 'wiki') {
+		return "\n\n== $title ==\n";
+	}
+	return "\n\n$title\n" .
+	       '~' x length($title) . "\n";
+}
+
+sub fmt_question_title {
+	my $title = shift;
+
+	if ($format eq 'wiki') {
+		return "\n=== $title ===\n";
+	}
+	if ($title =~ m/\n/) {
+		return "\n$title\n";
+	} else {
+		return "\n".wrap('', '    ', $title)."\n";
+	}
+}
+
+sub fmt_todo {
+	my @lines = @_;
+	my $result = '';
+
+	$result .= "\n";
+	foreach my $line (@lines) {
+		$result .= "  $line\n";
+	}
+	$result .= "\n";
+
+	return $result;
+}
+
+my $width = 30;
+sub fmt_th_percent {
+	my $title = shift || "Answer";
+
+	if ($format eq 'wiki') {
+		#my $style = join(' ', grep { defined $_ && $_ ne '' }
+		#                 $tablestyle, $rowstyle{'th'});
+		my $style = defined($rowstyle{'th'}) ?
+		            "<rowstyle=\"$rowstyle{'th'}\">" : '';
+
+		return "## table begin\n" .
+		       sprintf("||$style %-${width}s || %5s || %-5s ||\n",
+		               $title, "Count", "Perc.");
+	}
+
+	return sprintf("  %-${width}s | %5s | %-5s\n", $title, "Count", "Perc.") .
+	               "  " . ('-' x ($width + 17)) . "\n";
+}
+
+sub fmt_row_percent {
+	my ($name, $count, $perc) = @_;
+
+	if ($format eq 'wiki') {
+		my $style = defined($rowstyle{'row'}) ?
+		            "<rowstyle=\"$rowstyle{'row'}\">" : '';
+		return sprintf("||%s %-${width}s || %5d || %4.1f%% ||\n",
+		               $style, $name, $count, $perc);
+	}
+
+	return sprintf("  %-${width}s | %-5d | %4.1f%%\n",
+	               $name, $count, $perc);
+}
+
+sub fmt_footer_percent {
+	my ($base, $responses) = @_;
+
+	if (!defined($base) && $format ne 'wiki') {
+		return "  " . ('-' x ($width + 17)) . "\n";
+	}
+
+	if ($format eq 'wiki') {
+		return "## table end\n\n" unless defined($base);
+
+		my $style = defined($rowstyle{'footer'}) ?
+		            "<rowstyle=\"$rowstyle{'footer'}\">" : '';
+
+		return sprintf("||%s %-${width}s ||<-2> %5d / %-5d ||\n",
+		               $style, "Base", $base, $responses) .
+		       "## table end\n\n";
+	}
+
+	return "  " . ('-' x ($width + 17)) . "\n" .
+	       sprintf("  %-${width}s | %5d / %-5d\n", "Base",
+	               $base, $responses) .
+	       "\n";
+}
+
+# . . . . . . . . . . . . . . . . . . . . . . . . . . . 
+
+sub question_type_description {
+	my $q = shift;
+
+	if ($q->{'freeform'}) {
+		return '(free-form essay)';
+	} elsif (exists $q->{'columns'}) {
+		return '(matrix)';
+	} elsif (exists $q->{'codes'}) {
+		my $str = '';
+		if ($q->{'multi'}) {
+			$str  = '(multiple choice';
+		} else {
+			$str  = '(single choice';
+		}
+		if ($q->{'other'}) {
+			$str .= ', with other';
+		}
+		$str .= ')';
+		return $str;
+	} elsif (ref($q->{'hist'}) eq 'CODE') {
+		return '(tabularized free-form single line)';
+	} else {
+		return '(free-form single line)';
+	}
+}
 
 # ======================================================================
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -848,20 +1284,49 @@ EOF
 );
 
 my %survey_data = @survey_data;
-my @sections = make_sections(\@survey_data);
+delete_sections(\%survey_data);
+
+#my @sections = make_sections(\@survey_data);
+my @sections =
+	({'title' => 'About you',
+		'start' => 1},
+	 {'title' => 'Getting started with Git',
+		'start' => 3},
+	 {'title' => 'How you use Git',
+		'start' => 7},
+	 {'title' => 'What you think of Git',
+		'start' => 20},
+	 {'title' => 'Changes in Git'.
+	             ' (since year ago, or since you started using it)',
+		'start' => 22},
+	 {'title' => 'Documentation. Getting help.',
+		'start' => 24},
+	 {'title' => 'About this survey. Open forum.',
+		'start' => 29});
 
 sub make_sections {
 	my $survinfo = shift;
 	my @sections = ();
 
 	for (my $i = 0, my $qno = 0; $i < @$survinfo; $i += 2) {
-		my ($key, $val) = $survinfo->[$i,$i+1];
+		my ($key, $val) = @{$survinfo}[$i,$i+1];
 		if ($key =~ m/^(Q(\d+))$/) {
-			$qno = $1;
+			$qno = $2;
 			next;
 		}
-		next unless (exists $val->{'section_title'});
+		next unless ($key =~ m/^(S(\d+))$/);
 		push @sections, {'title' => $val->{'section_title'}, 'start' => $qno+1};
+	}
+
+	return @sections;
+}
+
+sub delete_sections {
+	my $survhash = shift;
+
+	foreach my $key (keys %$survhash) {
+		delete $survhash->{$key}
+			if ($key =~ m/^S\d+$/);
 	}
 }
 
@@ -870,205 +1335,176 @@ sub make_sections {
 # ======================================================================
 # MAIN
 
-my %hist       = ();
-my %datehist   = ();
-my %surveyinfo = ();
+my @responses = parse_or_retrieve_data(\%survey_data);
+make_or_retrieve_hist(\%survey_data, \@responses);
 
-open my $fd, '<', '/tmp/jnareb/Survey results Sep 16, 09.csv'
-	or die "Could not open file: $!";
+my $nquestions = $survey_data{'nquestions'};
+my $nresponses = scalar @responses;
 
-my $csv = Text::CSV->new({
-	binary => 1, eol => $/,
-	escape_char => "\\",
-	allow_loose_escapes => 1
-}) or die Text::CSV->error_diag();
+print "There were $nresponses individual responses\n\n";
+#@responses = grep { $_->[0]{'date'} } @responses;
+#$nresponses = scalar @responses;
+#print "There were $nresponses individual responses (adjusted)\n\n";
 
-my ($line, $status);
+my $date_fmt = '%Y-%m-%d %H:%M %z';
+my $first_resp = UnixDate($responses[ 0]->[0]{'parsed_date'}, $date_fmt);
+my $last_resp  = UnixDate($responses[-1]->[0]{'parsed_date'}, $date_fmt);
+print <<"EOF";
+Completion Rate:    100%
+Total respondents:  3868 ($nresponses)
+Survey created:     Jun 25, 2009 03:15 PM (for testing)
+Opened on:          Jul 15, 2009 02:34 AM
+Announced on:       2009-07-15 02:39:43 (git wiki: GitSurvey2009)
+                    2009-07-15 02:54:00 (git wiki: MainPage)
+                    Wed, 15 Jul 2009 09:22:32 +0200 (git\@vger.kernel.org)
+First response:     Jul 15, 2009 ($first_resp)
+Last response:      Sep 16, 2009 ($last_resp)
+Closed on:          Sep 16, 2009 11:45 PM (GitSurvey2009 channel, auto)
+Open during:        72 days
+Average time:       49 minutes
 
-# header line
-$line = <$fd>;
-chomp $line;
-$status = $csv->parse($line);
-my @colnames = $csv->fields();
-
-my ($respno, $respdate, $resptime, $channel);
+EOF
 
 
-# $line = <$fd>;
-# $line = <$fd>;
-# $line = <$fd>;
-# $line = <$fd>;
-# chomp $line;
+# -----------------------------------------------------------
+# Print some base statistics and non-question histograms
 
-# #rely on the fact that last question is free-form essay question
-# while ($line !~ m/"$/) {
-# 	$line .= <$fd>;
-# 	chomp $line;
-# }
+my $stat = Statistics::Descriptive::Sparse->new();
+#my $stat = Statistics::Descriptive::Full->new();
+$stat->add_data(
+	map { $survey_data{$_}{'base'} }
+	sort { substr($a,1) <=> substr($b,1) }
+	grep { $_ =~ m/^Q\d+$/ }
+	sort keys %survey_data
+);
 
-# unless ($csv->parse($line)) {
-# 	my $err = $csv->error_input();
+print "\n'base'\n".
+      "- count:  ".$stat->count()." (questions)\n".
+      "- mean:   ".$stat->mean()." (responders)\n".
+      "- stddev: ".$stat->standard_deviation()."\n".
+      "- max:    ".$stat->max()." for question ".($stat->maxdex()+1)."\n".
+      "- min:    ".$stat->min()." for question ".($stat->mindex()+1)."\n";
 
-# 	print STDERR "$.: parse() failed on argument: $err\n";
-# 	die $csv->error_diag(); # void context: print to STDERR
-# }
+$Text::Wrap::columns = 80;
+print wrap('', '    ', $survey_data{'Q'.($stat->maxdex()+1)}{'title'} . "\n");
+print wrap('', '    ', $survey_data{'Q'.($stat->mindex()+1)}{'title'} . "\n");
 
-# my @columns = $csv->fields();
+$stat->clear();
+$stat->add_data(
+	map { $survey_data{$_}{'skipped'} }
+	sort { substr($a,1) <=> substr($b,1) }
+	grep { $_ =~ m/^Q\d+$/ }
+	sort keys %survey_data
+);
+print "\n'skipped'\n".
+      "- count:  ".$stat->count()." (questions)\n".
+      "- mean:   ".$stat->mean()." (responders)\n".
+      "- stddev: ".$stat->standard_deviation()."\n\n";
 
-$csv->getline($fd);
-$csv->getline($fd);
-$csv->getline($fd);
-my $colref = $csv->getline($fd);
+$stat->clear();
+make_nskipped_stat(\%survey_data, \@responses, $stat);
 
-unless (defined $colref) {
-	my $err = $csv->error_input();
+print "\nresponses skipped by user\n".
+      "- count:  ".$stat->count()." (responders / users)\n".
+      "- mean:   ".$stat->mean()." (questions skipped)\n".
+      "- stddev: ".$stat->standard_deviation()."\n".
+      "- max:    ".$stat->max().
+        " ($survey_data{'nquestions'} means no question answered)\n".
+      "- min:    ".$stat->min().
+        " (0 means all questions answered)\n\n";
 
-	print STDERR "$.: getline() failed on argument: $err\n";
-	die $csv->error_diag();
+print "============================== \n".
+      "Answered | Resp.[n] | Resp.[%] \n".
+      "------------------------------ \n";
+SKIPPED:
+for (my $i = 0; $i <= $survey_data{'nquestions'}; $i++) {
+	printf(" %2d      | %-5d    | %4.1f%%\n", $survey_data{'nquestions'} - $i,
+	       $survey_data{'histogram'}{'skipped'}{$i},
+	       100.0*$survey_data{'histogram'}{'skipped'}{$i}/$nresponses);
 }
+print "==============================\n\n";
 
-my @columns = @$colref;
+#my $sum = 0;
+#DATE:
+#foreach my $date (sort keys %{$survey_data{'histogram'}{'date'}}) {
+#	print "$date $survey_data{'histogram'}{'date'}{$date}\n";
+#	$sum += $survey_data{'histogram'}{'date'}{$date};
+#}
+#print "\n";
+#
+#print "responses with date field: $sum\n\n";
 
-($respno, $respdate, $resptime, $channel) =
-	splice(@columns,0,4);
-splice(@colnames, 0,4);
+#QUESTION:
+#for (my $qno = 1; $qno <= $survey_data{'nquestions'}; $qno++) {
+#	my $q = $survey_data{"Q$qno"};
+#	next unless (defined $q);
+#
+#	printf("%-2d %d\n", $qno, $q->{'base'});
+#}
+#print "\n";
 
-print "VERSION: ".Text::CSV->VERSION()."\n";
-print "version: ".Text::CSV->version()."\n\n";
+# ===========================================================
+# Print results
+my $nextsect = 0;
 
-{
-	my ($year, $day, $month) = split("/", $respdate);
-	$respdate = "$year-$month-$day";
-}
+QUESTION:
+for (my $qno = 1; $qno <= $nquestions; $qno++) {
+	my $q = $survey_data{"Q$qno"};
+	next unless (defined $q);
 
-my @responses = ();
-my $response = [];
-
-print "respno:  $respno\n".
-      "date:    $respdate $resptime\n".
-      "channel: $channel\n";
-
-$response->[0] = { 'date' => $respdate };
-
-{
-	my $qno = 0;
-	for (my $i = 0; $i < @colnames; $i++) {
-		my $colname = $colnames[$i];
-		next unless ($colname =~ m/^Q(\d+)/);
-		if ($qno != $1) {
-			$qno = $1;
-			$survey_data{"Q$qno"}{'col'} = $i;
-		}
-	}
-}
-
-SURVEY_DATA:
-for (my $i = 0; $i < @survey_data; $i += 2) {
-	my ($key, $val) = @survey_data[$i,$i+1];
-	next unless $key =~ m/^(Q(\d+))$/;
-
-	my $qno = $2;
-	my $col = $survey_data{$1}{'col'};
-
-	print "$val->{'title'}\n";
-	#print "    $colnames[$col]\n";
-
-	if ($val->{'freeform'}) {
-		# free-form essay, single value
-		if ($columns[$col] ne '') {
-			#print "  (left for later)\n";
-			print "\n$columns[$col]\n";
-			$response->[$qno] = { 'type' => 'essay', 'contents' => $columns[$col] };
-		} else {
-			print ". skipped (freeform)\n";
-		}
-
-	} elsif (!exists $val->{'codes'}) {
-		# free-form, single value
-		if ($columns[$col] eq '') {
-			print ". skipped (text)\n";
-			next;
-		}
-		print "* $columns[$col]\n";
-		if (ref($val->{'hist'}) eq 'CODE') {
-			print "! ".$val->{'hist'}->($columns[$col])."\n";
-			$response->[$qno] = { 'type' => 'oneline',
-				'original' => $columns[$col],
-				'contents' => $val->{'hist'}->($columns[$col]) };
-		} else {
-			$response->[$qno] = { 'type' => 'oneline',
-				'contents' => $columns[$col] };
-		}
-
-	} elsif (!$val->{'multi'} && !$val->{'columns'}) {
-		# single choice
-		if ($columns[$col] ne '') {
-			print "# [$columns[$col]] $val->{'codes'}[$columns[$col]-1]\n";
-			$response->[$qno] = { 'type' => 'single-choice',
-				'contents' => $columns[$col] };
-		} else {
-			print ". skipped (single)\n";
-		}
-		# single choice with other
-		if ($val->{'other'} && $columns[$col+1] ne '') {
-			print "o $columns[$col+1]\n";
-			$response->[$qno]{'other'} = $columns[$col+1];
-		}
-
-	} elsif ($val->{'multi'} && !$val->{'columns'}) {
-		# multiple choice
-		my $skipped = 1;
-		$response->[$qno] = { 'type' => 'multiple-choice',
-			'contents' => [] };
-		for (my $j = 0; $j < @{$val->{'codes'}}; $j++) {
-			next unless ($columns[$col+$j] ne '');
-			if ($j == $#{$val->{'codes'}} &&
-			    $val->{'other'}) {
-				print "o $columns[$col+$j]\n";
-				$response->[$qno]{'other'} = $columns[$col+$j];
-			} else {
-				print "* [$columns[$col+$j]] ".
-				      "$val->{'codes'}[$columns[$col+$j]-1]\n";
-			}
-			push @{$response->[$qno]{'contents'}}, $columns[$col+$j];
-			$skipped = 0;
-		}
-		print ". skipped (multi)\n" if $skipped;
-
-	} elsif ($val->{'columns'}) {
-		# matrix
-		my $skipped = 1;
-		$response->[$qno] = { 'type' => 'matrix',
-			'contents' => [] };
-		for (my $j = 0; $j < @{$val->{'codes'}}; $j++) {
-			next unless ($columns[$col+$j] ne '');
-			printf("+ %-30s ", $val->{'codes'}[$j]);
-			print "[$columns[$col+$j]]";
-			print " $val->{'columns'}[$columns[$col+$j]-1]"
-				if ($columns[$col+$j] =~ m/^\d+$/);
-			print "\n";
-			push @{$response->[$qno]{'contents'}}, $columns[$col+$j];
-			$skipped = 0;
-		}
-		print ". skipped (matrix)\n" if $skipped;
+	# section header
+	if (exists $sections[$nextsect] &&
+	    $sections[$nextsect]{'start'} <= $qno) {
+		print fmt_section_header($sections[$nextsect]{'title'});
+		$nextsect++;
 	}
 
+	# question
+	print fmt_question_title($q->{'title'});
+	print question_type_description($q)."\n";
+
+	# if there are no histogram
+	if (!exists $q->{'histogram'} || exists $q->{'columns'}) {
+		print fmt_todo(exists $q->{'columns'} ?  'TO DO' :'TO TABULARIZE',
+		               "$q->{'base'} / $nresponses non-empty responses");
+		next QUESTION;
+	}
+
+	# find width of widest element
+	$width = 30;
+	if (exists $q->{'codes'}) {
+		$width = max(map(length, @{$q->{'codes'}}));
+	} else {
+		$width = max(map(length, keys %{$q->{'histogram'}}));
+	}
+	$width = 30 if ($width < 30);
+
+	# table header
 	print "\n";
+	print fmt_th_percent();
+
+	# table contents
+	my @rows = ();
+	if (exists $q->{'codes'}) {
+		@rows = @{$q->{'codes'}};
+	} else {
+		@rows = sort keys %{$q->{'histogram'}};
+	}
+
+	# table body
+	my $base = $q->{'base'};
+	foreach my $row (@rows) {
+		print fmt_row_percent($row, $q->{'histogram'}{$row},
+		                      100.0*$q->{'histogram'}{$row} / $base);
+	}
+
+	# table footer
+	print fmt_footer_percent($q->{'base'}, $nresponses);
 }
-
-print '-' x 40, "\n";
-
-print Dumper($response);
-store($response, "/tmp/jnareb/GitSurvey2009-response.storable");
-
-close $fd
-	or die "Could not close file: $!";
-
-#parse_data(\%hist, \%datehist, \%surveyinfo);
 
 #print Data::Dumper->Dump(
-#	[\@sections, \%hist, \%datehist, \%surveyinfo],
-#	[qw(\@sections \%hist \%datehist \%surveyinfo)]
+#	[   \@sections],
+#	[qw(\@sections)]
 #);
 
 __END__
