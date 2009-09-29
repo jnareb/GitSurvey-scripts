@@ -646,6 +646,9 @@ sub fmt_row_percent {
 	my ($name, $count, $perc) = @_;
 
 	if ($format eq 'wiki') {
+		# CamelCase -> !CamelCase to avoid accidental wiki links
+		$name =~ s/\b([A-Z][a-z]+[A-Z][a-z]+)\b/!$1/g;
+
 		my $style = defined($rowstyle{'row'}) ?
 		            "<rowstyle=\"$rowstyle{'row'}\">" : '';
 		return sprintf("||%s %-${width}s || %5d || %4.1f%% ||\n",
