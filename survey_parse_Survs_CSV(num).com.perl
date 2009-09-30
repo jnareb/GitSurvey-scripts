@@ -1449,6 +1449,12 @@ sub print_base_stats {
 # ======================================================================
 # MAIN
 
+GetOptions(
+	'format=s' => \$format,
+	'wiki' => sub { $format = 'wiki' },
+	'text' => sub { $format = 'text' },
+);
+
 my @responses = parse_or_retrieve_data(\%survey_data);
 make_or_retrieve_hist(\%survey_data, \@responses);
 
