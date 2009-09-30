@@ -1453,95 +1453,10 @@ sub print_base_stats {
 	$stat->clear();
 }
 
-# ======================================================================
-# ======================================================================
-# ======================================================================
-# MAIN
+# Print results (statistics) for given question
+sub print_question_stats {
+	my ($q, $nresponses, $sort) = @_;
 
-my $help = 0;
-
-GetOptions(
-	'help|?' => \$help,
-	'format=s' => \$format,
-	'wiki' => sub { $format = 'wiki' },
-	'text' => sub { $format = 'text' },
-	'file=s'     => \$filename,
-	'respfile=s' => \$respfile,
-	'statfile=s' => \$statfile,
-);
-pod2usage(1) if $help;
-
-=head1 NAME
-
-survey_parse_Survs_CSV(num).com - Parse data from "Git User's Survey 2009"
-
-=head1 SYNOPSIS
-
-./survey_parse_Survs_CSV(num).com.perl [options]
-
- Options:
-   --help                      brief help message
-   --format=wiki|text          set output format
-   --wiki                      set 'wiki' (MoinMoin) output format
-   --text                      set 'text' output format
-   --filename=<CSV file>       input file, in CSV format
-   --respfile=<filename>       file to save parsed responses
-   --statfile=<filename>       file to save generated statistics
-
-=head1 DESCRIPTION
-
-B<survey_parse_Survs_CSV(num).com.perl> is used to parse data from
-CSV export (numeric) from "Git User's Survey 2009" from Survs.com
-
-=cut
-
-my @responses = parse_or_retrieve_data(\%survey_data);
-make_or_retrieve_hist(\%survey_data, \@responses);
-
-my $nquestions = $survey_data{'nquestions'};
-my $nresponses = scalar @responses;
-
-print "There were $nresponses individual responses\n\n";
-
-print_survey_info(\@responses);
-
-# -----------------------------------------------------------
-# Print some base statistics and non-question histograms
-
-print_base_stats(\%survey_data, \@responses);
-
-print fmt_th_percent('Answered questions');
-SKIPPED:
-for (my $i = 0; $i <= $survey_data{'nquestions'}; $i++) {
-	my $nskipped = $survey_data{'histogram'}{'skipped'}{$i};
-	print fmt_row_percent($survey_data{'nquestions'} - $i,
-	                      $nskipped,
-	                      100.0*$nskipped/$nresponses);
-}
-if ($format ne 'wiki') {
-	print "  " . ('-' x ($width + 17)) . "\n";
-} else {
-	print "## table end\n\n";
-}
-
-
-# ===========================================================
-# Print results
-my $nextsect = 0;
-
-QUESTION:
-for (my $qno = 1; $qno <= $nquestions; $qno++) {
-	my $q = $survey_data{"Q$qno"};
-	next unless (defined $q);
-
-	# section header
-	if (exists $sections[$nextsect] &&
-	    $sections[$nextsect]{'start'} <= $qno) {
-		print fmt_section_header($sections[$nextsect]{'title'});
-		$nextsect++;
-	}
-
-	# question
 	print fmt_question_title($q->{'title'});
 	print question_type_description($q)."\n";
 
@@ -1549,7 +1464,7 @@ for (my $qno = 1; $qno <= $nquestions; $qno++) {
 	if (!exists $q->{'histogram'} || exists $q->{'columns'}) {
 		print fmt_todo(exists $q->{'columns'} ?  'TO DO' :'TO TABULARIZE',
 		               "$q->{'base'} / $nresponses non-empty responses");
-		next QUESTION;
+		return;
 	}
 
 	# find width of widest element
@@ -1573,6 +1488,14 @@ for (my $qno = 1; $qno <= $nquestions; $qno++) {
 		@rows = sort keys %{$q->{'histogram'}};
 	}
 
+	if ($sort) {
+		@rows =
+			map { $_->[0] }
+			sort { $b->[1] <=> $a->[1] } # descending
+			map { [ $_, $q->{'histogram'}{$_} ] }
+			@rows;
+	}
+
 	# table body
 	my $base = $q->{'base'};
 	foreach my $row (@rows) {
@@ -1582,6 +1505,121 @@ for (my $qno = 1; $qno <= $nquestions; $qno++) {
 
 	# table footer
 	print fmt_footer_percent($q->{'base'}, $nresponses);
+}
+
+# ======================================================================
+# ======================================================================
+# ======================================================================
+# MAIN
+
+my $help = 0;
+my ($resp_only, $sort);
+
+GetOptions(
+	'help|?' => \$help,
+	'format=s' => \$format,
+	'wiki' => sub { $format = 'wiki' },
+	'text' => sub { $format = 'text' },
+	'only|o=i' => \$resp_only,
+	'sort!' => \$sort,
+	'file=s'     => \$filename,
+	'respfile=s' => \$respfile,
+	'statfile=s' => \$statfile,
+);
+pod2usage(1) if $help;
+
+# number of questions is hardcoded here to allow faster fail
+unless (1 <= $resp_only && $resp_only <= 30) {
+	print STDERR "Response number $resp_only is not between 1 and 30\n";
+	exit 1;
+}
+
+=head1 NAME
+
+survey_parse_Survs_CSV(num).com - Parse data from "Git User's Survey 2009"
+
+=head1 SYNOPSIS
+
+./survey_parse_Survs_CSV(num).com.perl [options]
+
+ Options:
+   --help                      brief help message
+
+   --format=wiki|text          set output format
+   --wiki                      set 'wiki' (MoinMoin) output format
+   --text                      set 'text' output format
+
+   --only=<question number>    display only results for given question
+   --sort                      sort tables by number of responses
+                               (requires --only=<number>)
+
+   --filename=<CSV file>       input file, in CSV format
+   --respfile=<filename>       file to save parsed responses
+   --statfile=<filename>       file to save generated statistics
+
+=head1 DESCRIPTION
+
+B<survey_parse_Survs_CSV(num).com.perl> is used to parse data from
+CSV export (numeric) from "Git User's Survey 2009" from Survs.com
+
+=cut
+
+my @responses = parse_or_retrieve_data(\%survey_data);
+make_or_retrieve_hist(\%survey_data, \@responses);
+
+my $nquestions = $survey_data{'nquestions'};
+my $nresponses = scalar @responses;
+
+unless ($resp_only) {
+	print "There were $nresponses individual responses\n\n";
+	print_survey_info(\@responses);
+
+	print_base_stats(\%survey_data, \@responses);
+}
+
+
+unless ($resp_only) {
+	print fmt_th_percent('Answered questions');
+ SKIPPED:
+	for (my $i = 0; $i <= $survey_data{'nquestions'}; $i++) {
+		my $nskipped = $survey_data{'histogram'}{'skipped'}{$i};
+		print fmt_row_percent($survey_data{'nquestions'} - $i,
+		                      $nskipped,
+		                      100.0*$nskipped/$nresponses);
+	}
+	if ($format ne 'wiki') {
+		print "  " . ('-' x ($width + 17)) . "\n";
+	} else {
+		print "## table end\n\n";
+	}
+}
+
+# ===========================================================
+# Print results
+my $nextsect = 0;
+
+if ($resp_only) {
+	my $q = $survey_data{"Q$resp_only"};
+
+	print_question_stats($q, $nresponses, $sort);
+
+} else {
+
+ QUESTION:
+	for (my $qno = 1; $qno <= $nquestions; $qno++) {
+		my $q = $survey_data{"Q$qno"};
+		next unless (defined $q);
+
+		# section header
+		if (exists $sections[$nextsect] &&
+		    $sections[$nextsect]{'start'} <= $qno) {
+			print fmt_section_header($sections[$nextsect]{'title'});
+			$nextsect++;
+		}
+
+		# question
+		print_question_stats($q, $nresponses);
+	}
 }
 
 #print Data::Dumper->Dump(
