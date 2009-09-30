@@ -19,6 +19,7 @@ use Encode;
 use Text::CSV;
 use Text::Wrap;
 use Getopt::Long;
+use Pod::Usage;
 use List::Util qw(max maxstr min minstr);
 #use File::Basename;
 
@@ -1449,11 +1450,42 @@ sub print_base_stats {
 # ======================================================================
 # MAIN
 
+my $help = 0;
+
 GetOptions(
+	'help|?' => \$help,
 	'format=s' => \$format,
 	'wiki' => sub { $format = 'wiki' },
 	'text' => sub { $format = 'text' },
+	'file=s'     => \$filename,
+	'respfile=s' => \$respfile,
+	'statfile=s' => \$statfile,
 );
+pod2usage(1) if $help;
+
+=head1 NAME
+
+survey_parse_Survs_CSV(num).com - Parse data from "Git User's Survey 2009"
+
+=head1 SYNOPSIS
+
+./survey_parse_Survs_CSV(num).com.perl [options]
+
+ Options:
+   --help                      brief help message
+   --format=wiki|text          set output format
+   --wiki                      set 'wiki' (MoinMoin) output format
+   --text                      set 'text' output format
+   --filename=<CSV file>       input file, in CSV format
+   --respfile=<filename>       file to save parsed responses
+   --statfile=<filename>       file to save generated statistics
+
+=head1 DESCRIPTION
+
+B<survey_parse_Survs_CSV(num).com.perl> is used to parse data from
+CSV export (numeric) from "Git User's Survey 2009" from Survs.com
+
+=cut
 
 my @responses = parse_or_retrieve_data(\%survey_data);
 make_or_retrieve_hist(\%survey_data, \@responses);
