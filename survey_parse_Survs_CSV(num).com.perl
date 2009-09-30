@@ -1505,6 +1505,20 @@ sub print_question_stats {
 
 	# table footer
 	print fmt_footer_percent($q->{'base'}, $nresponses);
+
+	if ($q->{'description'}) {
+		printf "\n";
+		print "~-\n" if ($format eq 'wiki'); # start of smaller
+		if ($format eq 'wiki') {
+			print "'''Description:'''<<BR>>\n";
+		} else {
+			print "Description:\n".
+			      "~~~~~~~~~~~~\n\n";
+		}
+		print $q->{'description'};
+		print "-~"   if ($format eq 'wiki'); # end of smaller
+		printf "\n";
+	}
 }
 
 # ======================================================================
