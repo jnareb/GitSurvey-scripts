@@ -1578,6 +1578,8 @@ CSV export (numeric) from "Git User's Survey 2009" from Survs.com
 
 =cut
 
+Date_Init("TZ=$resp_tz", "ConvTZ=$resp_tz", "Language=English");
+
 my @responses = parse_or_retrieve_data(\%survey_data);
 make_or_retrieve_hist(\%survey_data, \@responses);
 
