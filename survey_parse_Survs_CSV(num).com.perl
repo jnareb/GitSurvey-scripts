@@ -1336,7 +1336,7 @@ sub delete_sections {
 # ======================================================================
 # ----------------------------------------------------------------------
 
-# print histogram of date of response, 
+# print histogram of date of response,
 # in format suitable for datafile e.g for gnuplot
 sub print_date_hist {
 	my $survey_data = shift;
@@ -1354,26 +1354,31 @@ sub print_date_hist {
 	print "# responses with date field: $num\n\n";
 }
 
-# ======================================================================
-# ======================================================================
-# ======================================================================
-# MAIN
+# print histogram of number of responses per question,
+# in format suitable for datafile e.g for gnuplot
+sub print_resp_hist {
+	my $survey_data = shift;
 
-my @responses = parse_or_retrieve_data(\%survey_data);
-make_or_retrieve_hist(\%survey_data, \@responses);
+	print "# 1:question_number 2:responses\n";
+ QUESTION:
+	for (my $qno = 1; $qno <= $survey_data->{'nquestions'}; $qno++) {
+		my $q = $survey_data{"Q$qno"};
+		next unless (defined $q);
 
-my $nquestions = $survey_data{'nquestions'};
-my $nresponses = scalar @responses;
+		printf("%-2d %d\n", $qno, $q->{'base'});
+	}
+	print "\n";
+}
 
-print "There were $nresponses individual responses\n\n";
-#@responses = grep { $_->[0]{'date'} } @responses;
-#$nresponses = scalar @responses;
-#print "There were $nresponses individual responses (adjusted)\n\n";
+# Print info about survey (from Survs.com + some extra)
+sub print_survey_info {
+	my $responses = shift;
+	my $nresponses = scalar @$responses;
 
-my $date_fmt = '%Y-%m-%d %H:%M %z';
-my $first_resp = UnixDate($responses[ 0]->[0]{'parsed_date'}, $date_fmt);
-my $last_resp  = UnixDate($responses[-1]->[0]{'parsed_date'}, $date_fmt);
-print <<"EOF";
+	my $date_fmt = '%Y-%m-%d %H:%M %z';
+	my $first_resp = UnixDate($responses->[ 0][0]{'parsed_date'}, $date_fmt);
+	my $last_resp  = UnixDate($responses->[-1][0]{'parsed_date'}, $date_fmt);
+	print <<"EOF"."\n";
 Completion Rate:    100%
 Total respondents:  3868 ($nresponses)
 Survey created:     Jun 25, 2009 03:15 PM (for testing)
@@ -1386,77 +1391,93 @@ Last response:      Sep 16, 2009 ($last_resp)
 Closed on:          Sep 16, 2009 11:45 PM (GitSurvey2009 channel, auto)
 Open during:        72 days
 Average time:       49 minutes
-
 EOF
+}
 
+# Print some base statistics
+sub print_base_stats {
+	my ($survey_data, $responses) = @_;
+
+	my $stat = Statistics::Descriptive::Sparse->new();
+	#my $stat = Statistics::Descriptive::Full->new();
+
+	$stat->add_data(
+		map { $survey_data->{$_}{'base'} }
+		sort { substr($a,1) <=> substr($b,1) }
+		grep { $_ =~ m/^Q\d+$/ }
+		sort keys %$survey_data
+	);
+	print "\n'base' (number of replies per question)\n".
+	      "- count:  ".$stat->count()." (questions)\n".
+	      "- mean:   ".$stat->mean()." (responders)\n".
+	      "- stddev: ".$stat->standard_deviation()."\n".
+	      "- max:    ".$stat->max()." for question ".($stat->maxdex()+1)."\n".
+	      "- min:    ".$stat->min()." for question ".($stat->mindex()+1)."\n";
+	$Text::Wrap::columns = 80;
+	print wrap('', '    ', 
+	           $survey_data->{'Q'.($stat->maxdex()+1)}{'title'} . "\n");
+	print wrap('', '    ', 
+	           $survey_data->{'Q'.($stat->mindex()+1)}{'title'} . "\n");
+	$stat->clear();
+
+	$stat->add_data(
+		map { $survey_data->{$_}{'skipped'} }
+		sort { substr($a,1) <=> substr($b,1) }
+		grep { $_ =~ m/^Q\d+$/ }
+		sort keys %$survey_data
+	);
+	print "\n'skipped' (number of people who skipped question)\n".
+	      "- count:  ".$stat->count()." (questions)\n".
+	      "- mean:   ".$stat->mean()." (responders)\n".
+	      "- stddev: ".$stat->standard_deviation()."\n\n";
+	$stat->clear();
+
+	make_nskipped_stat($survey_data, $responses, $stat);
+	print "\nresponses skipped by user\n".
+	      "- count:  ".$stat->count()." (responders / users)\n".
+	      "- mean:   ".$stat->mean()." (questions skipped)\n".
+	      "- stddev: ".$stat->standard_deviation()."\n".
+	      "- max:    ".$stat->max().
+	        " ($survey_data->{'nquestions'} means no question answered)\n".
+	      "- min:    ".$stat->min().
+	        " (0 means all questions answered)\n\n";
+	$stat->clear();
+}
+
+# ======================================================================
+# ======================================================================
+# ======================================================================
+# MAIN
+
+my @responses = parse_or_retrieve_data(\%survey_data);
+make_or_retrieve_hist(\%survey_data, \@responses);
+
+my $nquestions = $survey_data{'nquestions'};
+my $nresponses = scalar @responses;
+
+print "There were $nresponses individual responses\n\n";
+
+print_survey_info(\@responses);
 
 # -----------------------------------------------------------
 # Print some base statistics and non-question histograms
 
-my $stat = Statistics::Descriptive::Sparse->new();
-#my $stat = Statistics::Descriptive::Full->new();
-$stat->add_data(
-	map { $survey_data{$_}{'base'} }
-	sort { substr($a,1) <=> substr($b,1) }
-	grep { $_ =~ m/^Q\d+$/ }
-	sort keys %survey_data
-);
+print_base_stats(\%survey_data, \@responses);
 
-print "\n'base'\n".
-      "- count:  ".$stat->count()." (questions)\n".
-      "- mean:   ".$stat->mean()." (responders)\n".
-      "- stddev: ".$stat->standard_deviation()."\n".
-      "- max:    ".$stat->max()." for question ".($stat->maxdex()+1)."\n".
-      "- min:    ".$stat->min()." for question ".($stat->mindex()+1)."\n";
-
-$Text::Wrap::columns = 80;
-print wrap('', '    ', $survey_data{'Q'.($stat->maxdex()+1)}{'title'} . "\n");
-print wrap('', '    ', $survey_data{'Q'.($stat->mindex()+1)}{'title'} . "\n");
-
-$stat->clear();
-$stat->add_data(
-	map { $survey_data{$_}{'skipped'} }
-	sort { substr($a,1) <=> substr($b,1) }
-	grep { $_ =~ m/^Q\d+$/ }
-	sort keys %survey_data
-);
-print "\n'skipped'\n".
-      "- count:  ".$stat->count()." (questions)\n".
-      "- mean:   ".$stat->mean()." (responders)\n".
-      "- stddev: ".$stat->standard_deviation()."\n\n";
-
-$stat->clear();
-make_nskipped_stat(\%survey_data, \@responses, $stat);
-
-print "\nresponses skipped by user\n".
-      "- count:  ".$stat->count()." (responders / users)\n".
-      "- mean:   ".$stat->mean()." (questions skipped)\n".
-      "- stddev: ".$stat->standard_deviation()."\n".
-      "- max:    ".$stat->max().
-        " ($survey_data{'nquestions'} means no question answered)\n".
-      "- min:    ".$stat->min().
-        " (0 means all questions answered)\n\n";
-
-print "============================== \n".
-      "Answered | Resp.[n] | Resp.[%] \n".
-      "------------------------------ \n";
+print fmt_th_percent('Answered questions');
 SKIPPED:
 for (my $i = 0; $i <= $survey_data{'nquestions'}; $i++) {
-	printf(" %2d      | %-5d    | %4.1f%%\n", $survey_data{'nquestions'} - $i,
-	       $survey_data{'histogram'}{'skipped'}{$i},
-	       100.0*$survey_data{'histogram'}{'skipped'}{$i}/$nresponses);
+	my $nskipped = $survey_data{'histogram'}{'skipped'}{$i};
+	print fmt_row_percent($survey_data{'nquestions'} - $i,
+	                      $nskipped,
+	                      100.0*$nskipped/$nresponses);
 }
-print "==============================\n\n";
+if ($format ne 'wiki') {
+	print "  " . ('-' x ($width + 17)) . "\n";
+} else {
+	print "## table end\n\n";
+}
 
-
-#QUESTION:
-#for (my $qno = 1; $qno <= $survey_data{'nquestions'}; $qno++) {
-#	my $q = $survey_data{"Q$qno"};
-#	next unless (defined $q);
-#
-#	printf("%-2d %d\n", $qno, $q->{'base'});
-#}
-#print "\n";
 
 # ===========================================================
 # Print results
