@@ -16,6 +16,7 @@ use strict;
 use warnings;
 
 use Encode;
+use PerlIO::gzip;
 use Text::CSV;
 use Text::Wrap;
 use Getopt::Long;
@@ -62,6 +63,10 @@ sub parse_data {
 
 	open my $fh, '<', $filename
 		or die "Could not open file '$filename': $!";
+	if ($filename =~ m/\.gz$/) {
+		binmode $fh, ':gzip'
+			or die "Could not set up gzip decompression on '$filename': $!";
+	}
 
 	# ........................................
 	# CSV column headers
@@ -234,6 +239,9 @@ sub parse_or_retrieve_data {
 	local $| = 1; # autoflush
 
 	if (! -f $respfile) {
+		$filename .= '.gz'
+			unless -r $filename;
+
 		print STDERR "parsing '$filename'... ";
 		parse_data($survey_data, $responses);
 		print STDERR "(done)\n";
