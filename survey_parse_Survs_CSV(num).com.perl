@@ -1543,7 +1543,8 @@ GetOptions(
 pod2usage(1) if $help;
 
 # number of questions is hardcoded here to allow faster fail
-unless (1 <= $resp_only && $resp_only <= 30) {
+unless (!defined $resp_only ||
+        (1 <= $resp_only && $resp_only <= 30)) {
 	print STDERR "Response number $resp_only is not between 1 and 30\n";
 	exit 1;
 }
