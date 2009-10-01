@@ -1544,8 +1544,8 @@ pod2usage(1) if $help;
 
 # number of questions is hardcoded here to allow faster fail
 unless (!defined $resp_only ||
-        (1 <= $resp_only && $resp_only <= 30)) {
-	print STDERR "Response number $resp_only is not between 1 and 30\n";
+        (0 <= $resp_only && $resp_only <= 30)) {
+	print STDERR "Response number $resp_only is not between 0 and 30\n";
 	exit 1;
 }
 
@@ -1609,6 +1609,10 @@ unless ($resp_only) {
 	} else {
 		print "## table end\n\n";
 	}
+}
+
+if (defined $resp_only && $resp_only == 0) {
+	exit 0;
 }
 
 # ===========================================================
