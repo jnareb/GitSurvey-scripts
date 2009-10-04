@@ -632,7 +632,7 @@ sub fmt_todo {
 	return $result;
 }
 
-my $width = 30;
+my $width = $min_width;
 sub fmt_th_percent {
 	my $title = shift || "Answer";
 
@@ -1345,6 +1345,8 @@ sub delete_sections {
 # ======================================================================
 # ----------------------------------------------------------------------
 
+my $min_width = 30; # default (minimum) width of column with answer
+
 # print histogram of date of response,
 # in format suitable for datafile e.g for gnuplot
 sub print_date_hist {
@@ -1468,13 +1470,13 @@ sub print_question_stats {
 	}
 
 	# find width of widest element
-	$width = 30;
+	$width = $min_width;
 	if (exists $q->{'codes'}) {
 		$width = max(map(length, @{$q->{'codes'}}));
 	} else {
 		$width = max(map(length, keys %{$q->{'histogram'}}));
 	}
-	$width = 30 if ($width < 30);
+	$width = $min_width if ($width < $min_width);
 
 	# table header
 	print "\n";
@@ -1534,6 +1536,7 @@ GetOptions(
 	'format=s' => \$format,
 	'wiki' => sub { $format = 'wiki' },
 	'text' => sub { $format = 'text' },
+	'min-width|width|w=i' => \$min_width,
 	'only|o=i' => \$resp_only,
 	'sort!' => \$sort,
 	'file=s'     => \$filename,
@@ -1563,6 +1566,7 @@ survey_parse_Survs_CSV(num).com - Parse data from "Git User's Survey 2009"
    --format=wiki|text          set output format
    --wiki                      set 'wiki' (MoinMoin) output format
    --text                      set 'text' output format
+   -w,--min-width=<width>      minimum width of first column
 
    --only=<question number>    display only results for given question
    --sort                      sort tables by number of responses
