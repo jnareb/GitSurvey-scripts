@@ -596,6 +596,9 @@ my %rowstyle =
 	 'footer' => 'font-weight: bold; font-style: italic; background-color: #ccffff;'
 	);
 
+my $min_width = 30; # default (minimum) width of column with answer
+
+
 sub fmt_section_header {
 	my $title = shift;
 
@@ -651,6 +654,42 @@ sub fmt_th_percent {
 	               "  " . ('-' x ($width + 17)) . "\n";
 }
 
+sub fmt_matrix_maxlen {
+	my $columns = shift;
+
+	return max(
+		map(length, @$columns),
+		$format eq 'wiki' ?
+			length(' 9999 ||  99.9%') - length('<-2> '):
+			length('9999 (99%)')
+	);
+}
+
+sub fmt_th_matrix {
+	my ($title, $columns) = @_;
+	$title ||= "Answer";
+
+	my $maxlen = fmt_matrix_maxlen($columns);
+	my @fmtcol = map { sprintf("%-${maxlen}s", $_) } @$columns;
+
+	if ($format eq 'wiki') {
+		#my $style = join(' ', grep { defined $_ && $_ ne '' }
+		#                 $tablestyle, $rowstyle{'th'});
+		my $style = defined($rowstyle{'th'}) ?
+		            "<rowstyle=\"$rowstyle{'th'}\">" : '';
+
+		my $th = join('||', map { "<-2> $_ " } @fmtcol);
+		return "## table begin\n" .
+		       sprintf("||$style %-${width}s ||$th||\n",
+		               $title);
+	}
+
+	my $th = join('|', map { " $_ " } @fmtcol);
+	$th = sprintf("%-${width}s |$th\n", $title);
+	return "  $th".
+	       "  " . ('-' x (length($th)-1)) . "\n";
+}
+
 sub fmt_row_percent {
 	my ($name, $count, $perc) = @_;
 
@@ -666,6 +705,51 @@ sub fmt_row_percent {
 
 	return sprintf("  %-${width}s | %-5d | %4.1f%%\n",
 	               $name, $count, $perc);
+}
+
+sub fmt_row_matrix {
+	my ($name, $hist, $base, $columns) = @_;
+
+	# CamelCase -> !CamelCase to avoid accidental wiki links
+	$name =~ s/\b([A-Z][a-z]+[A-Z][a-z]+)\b/!$1/g
+		if ($format eq 'wiki');
+
+	# format row name (answer)
+	my $result;
+	if ($format eq 'wiki') {
+		my $style = defined($rowstyle{'row'}) ?
+		            "<rowstyle=\"$rowstyle{'row'}\">" : '';
+		$result = sprintf("||%s %-${width}s", $style, $name);
+	} else {
+		$result = sprintf("  %-${width}s", $name);
+	}
+
+	my $maxlen = fmt_matrix_maxlen($columns);
+	my ($sep, $doublesep);
+	if ($format eq 'wiki') {
+		$sep = ' || ';
+		$doublesep = ' || || ';
+	} else {
+		$sep = ' | ';
+		$doublesep = ' || ';
+	}
+	foreach my $entry (@$hist) {
+		my $perc = 100.0*$entry / $base;
+		my $col;
+		if ($format eq 'wiki') {
+			$col = sprintf("%-5d || %4.1f%%", $entry, $perc);
+		} else {
+			$col = sprintf("%4d (%.0f%%)", $entry, $perc);
+		}
+		$col = sprintf("%-${maxlen}s", $col);
+		$result .= "$sep$col";
+	}
+
+	if ($format eq 'wiki') {
+		$result .= ' ||';
+	}
+
+	return $result . "\n";
 }
 
 sub fmt_footer_percent {
@@ -690,6 +774,44 @@ sub fmt_footer_percent {
 	       sprintf("  %-${width}s | %5d / %-5d\n", "Base",
 	               $base, $responses) .
 	       "\n";
+}
+
+sub fmt_footer_matrix {
+	my ($base, $responses, $columns) = @_;
+	my $ncol = scalar @$columns;
+	my $maxlen = fmt_matrix_maxlen($columns);
+	my ($sep, $doublesep);
+	if ($format eq 'wiki') {
+		$sep = ' || ';
+		$doublesep = ' || || ';
+	} else {
+		$sep = ' | ';
+		$doublesep = ' || ';
+	}
+	my ($seplen, $doubleseplen) = map(length, $sep, $doublesep);
+	my $table_width =
+		$width +                   # code
+		$ncol*($seplen + $maxlen); # columns
+
+	my $result = '';
+	if ($format ne 'wiki') {
+		$result .= '  '.('-' x $table_width)."-\n";
+	}
+	if ($base) {
+		if ($format eq 'wiki') {
+			my $style = defined($rowstyle{'footer'}) ?
+			            "<rowstyle=\"$rowstyle{'footer'}\">" : '';
+			$result .= sprintf("||%s %-${width}s ||<-%d> %5d / %-5d ||\n",
+			                   $style, "Base", $ncol*2, $base, $responses);
+		} else {
+			$result .= sprintf("  %-${width}s | %5d / %-5d\n", "Base",
+			                   $base, $responses);
+		}
+	}
+	if ($format eq 'wiki') {
+		$result .= "## table end\n\n";
+	}
+	return $result;
 }
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . 
@@ -728,9 +850,11 @@ my @survey_data =
 	 'S1' => {'section_title' => "About you"},
 	 'Q1' =>
 	 {'title' => '01. What country do you live in?',
+	  'colname' => 'Country',
 	  'hist'  => \&normalize_country},
 	 'Q2' =>
 	 {'title' => '02. How old are you (in years)?',
+	  'colname' => 'Age',
 	  'hist' => \&normalize_age,
 	  'histogram' =>
 		{' < 18' => 0,
@@ -760,6 +884,7 @@ my @survey_data =
 		 'Very hard']},
 	 'Q5' =>
 	 {'title' => '05. Which Git version(s) are you using?',
+	  'colname' => 'Version used',
 	  'multi' => 1,
 	  'other' => 1,
 	  'codes' =>
@@ -847,6 +972,7 @@ operating systems.
 EOF
 	 'Q9' =>
 	 {'title' => '09. On which operating system(s) do you use Git?',
+	  'colname' => 'Operating System',
 	  'multi' => 1,
 	  'other' => 1,
 	  'codes' =>
@@ -1243,6 +1369,7 @@ EOF
 		 'Somewhat']},
 	 'Q27' =>
 	 {'title' => '27. What channel(s) did you use to request help?',
+	  'colname' => 'Channel',
 	  'multi' => 1,
 	  'other' => 1,
 	  'codes' =>
@@ -1261,6 +1388,7 @@ EOF
 	 {'title' =>
 		"28. Which communication channel(s) do you use?\n".
 		"    Do you read the mailing list, or watch IRC channel?",
+	  'colname' => 'Channel',
 	  'multi' => 1,
 	  'codes' =>
 		['git@vger.kernel.org (main)',
@@ -1344,8 +1472,6 @@ sub delete_sections {
 
 # ======================================================================
 # ----------------------------------------------------------------------
-
-my $min_width = 30; # default (minimum) width of column with answer
 
 # print histogram of date of response,
 # in format suitable for datafile e.g for gnuplot
@@ -1463,8 +1589,8 @@ sub print_question_stats {
 	print question_type_description($q)."\n";
 
 	# if there are no histogram
-	if (!exists $q->{'histogram'} || exists $q->{'columns'}) {
-		print fmt_todo(exists $q->{'columns'} ?  'TO DO' :'TO TABULARIZE',
+	if (!exists $q->{'histogram'}) {
+		print fmt_todo('TO TABULARIZE',
 		               "$q->{'base'} / $nresponses non-empty responses");
 		return;
 	}
@@ -1480,7 +1606,11 @@ sub print_question_stats {
 
 	# table header
 	print "\n";
-	print fmt_th_percent();
+	if (exists $q->{'columns'}) {
+		print fmt_th_matrix($q->{'colname'}, $q->{'columns'});
+	} else {
+		print fmt_th_percent($q->{'colname'});
+	}
 
 	# table contents
 	my @rows = ();
@@ -1491,22 +1621,40 @@ sub print_question_stats {
 	}
 
 	if ($sort) {
-		@rows =
-			map { $_->[0] }
-			sort { $b->[1] <=> $a->[1] } # descending
-			map { [ $_, $q->{'histogram'}{$_} ] }
-			@rows;
+		if (!exists $q->{'columns'}) {
+
+			@rows =
+				map { $_->[0] }
+				sort { $b->[1] <=> $a->[1] } # descending
+				map { [ $_, $q->{'histogram'}{$_} ] }
+				@rows;
+		} else {
+
+			# matrix form questions have to be sorted by specific column
+
+			# ...
+		}
 	}
 
 	# table body
 	my $base = $q->{'base'};
 	foreach my $row (@rows) {
-		print fmt_row_percent($row, $q->{'histogram'}{$row},
-		                      100.0*$q->{'histogram'}{$row} / $base);
+		if (exists $q->{'columns'}) {
+			print fmt_row_matrix($row, $q->{'histogram'}{$row}, $base,
+			                     $q->{'columns'});
+		} else {
+			print fmt_row_percent($row, $q->{'histogram'}{$row},
+			                      100.0*$q->{'histogram'}{$row} / $base);
+		}
 	}
 
 	# table footer
-	print fmt_footer_percent($q->{'base'}, $nresponses);
+	if (exists $q->{'columns'}) {
+		print fmt_footer_matrix($q->{'base'}, $nresponses,
+		                        $q->{'columns'});
+	} else {
+		print fmt_footer_percent($q->{'base'}, $nresponses);
+	}
 
 	if ($q->{'description'}) {
 		printf "\n";
@@ -1520,6 +1668,12 @@ sub print_question_stats {
 		print $q->{'description'};
 		print "-~"   if ($format eq 'wiki'); # end of smaller
 		printf "\n";
+		if ($format eq 'wiki') {
+			print "'''Analysis:'''<<BR>>\n";
+		} else {
+			print "Analysis:\n".
+			      "~~~~~~~~~\n\n";
+		}
 	}
 }
 
