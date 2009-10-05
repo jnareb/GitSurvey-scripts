@@ -21,7 +21,7 @@ use Text::CSV;
 use Text::Wrap;
 use Getopt::Long;
 use Pod::Usage;
-use List::Util qw(max maxstr min minstr);
+use List::Util qw(max maxstr min minstr sum);
 #use File::Basename;
 
 use Date::Manip;
@@ -278,8 +278,13 @@ sub prepare_hist {
 			# matrix
 			my $ncols = scalar @{$q->{'columns'}};
 			$q->{'histogram'} = {
-				map { $_ => [ (0) x $ncols ] } @{$q->{'codes'}}
-			}
+				map { $_ => [ (0) x $ncols ] }
+				@{$q->{'codes'}}
+			};
+			$q->{'matrix'} = {
+				map { $_ => { 'count' => 0, 'score' => 0 } }
+				@{$q->{'codes'}}
+			};
 		} elsif (exists $q->{'codes'}) {
 			$q->{'histogram'} = {
 				map { $_ => 0 } @{$q->{'codes'}}
@@ -334,14 +339,17 @@ sub make_hist {
 					my $rowname = $qinfo->{'codes'}[$i];
 					my $column  = $qresp->{'contents'}[$i];
 					$qinfo->{'histogram'}{$rowname}[$column-1]++;
+					# row score (columns as 1..N grade)
+					$qinfo->{'matrix'}{$rowname}{'count'} += 1;
+					$qinfo->{'matrix'}{$rowname}{'score'} += $column;
 				}
 			} elsif ($qresp->{'type'} eq 'oneline') {
 				add_to_hist($qinfo->{'histogram'}, $qresp->{'contents'});
 			}
 
-		}
+		} # end for $qno
 
-	}
+	} # end for $resp
 
 
 	# ...........................................
@@ -407,7 +415,7 @@ sub extract_hist {
 	foreach my $key (keys %$src) {
 		my $val = $src->{$key};
 
-		if ($key =~ m/^(?: skipped | base | histogram )/x) {
+		if ($key =~ m/^(?: skipped | base | matrix | histogram )/x) {
 			$dst->{$key} = $val;
 		} elsif (ref($val) eq 'HASH') {
 			$val = extract_hist($val);
@@ -668,7 +676,7 @@ sub fmt_matrix_maxlen {
 }
 
 sub fmt_th_matrix {
-	my ($title, $columns) = @_;
+	my ($title, $columns, $show_avg) = @_;
 	$title ||= "Answer";
 
 	my $maxlen = fmt_matrix_maxlen($columns);
@@ -681,12 +689,14 @@ sub fmt_th_matrix {
 		            "<rowstyle=\"$rowstyle{'th'}\">" : '';
 
 		my $th = join('||', map { "<-2> $_ " } @fmtcol);
+		$th .= "|| || Avg. / Count " if ($show_avg);
 		return "## table begin\n" .
 		       sprintf("||$style %-${width}s ||$th||\n",
 		               $title);
 	}
 
 	my $th = join('|', map { " $_ " } @fmtcol);
+	$th .= "|| Avg." if ($show_avg);
 	$th = sprintf("%-${width}s |$th\n", $title);
 	return "  $th".
 	       "  " . ('-' x (length($th)-1)) . "\n";
@@ -710,7 +720,7 @@ sub fmt_row_percent {
 }
 
 sub fmt_row_matrix {
-	my ($name, $hist, $base, $columns) = @_;
+	my ($name, $hist, $base, $columns, $score, $count) = @_;
 
 	# CamelCase -> !CamelCase to avoid accidental wiki links
 	$name =~ s/\b([A-Z][a-z]+[A-Z][a-z]+)\b/!$1/g
@@ -746,6 +756,14 @@ sub fmt_row_matrix {
 		$col = sprintf("%-${maxlen}s", $col);
 		$result .= "$sep$col";
 	}
+	if ($score) {
+		$result .= $doublesep . sprintf("%3.1f", $score);
+		$result .= ' / ' . sprintf("%-4d", $count)
+			if (defined $count && $format eq 'wiki');
+		# or alternatively
+		#$result .= ' / ' . sprintf("%-4d", sum(@$hist))
+		#	if ($format eq 'wiki');
+	}
 
 	if ($format eq 'wiki') {
 		$result .= ' ||';
@@ -779,7 +797,7 @@ sub fmt_footer_percent {
 }
 
 sub fmt_footer_matrix {
-	my ($base, $responses, $columns) = @_;
+	my ($base, $responses, $columns, $show_avg) = @_;
 	my $ncol = scalar @$columns;
 	my $maxlen = fmt_matrix_maxlen($columns);
 	my ($sep, $doublesep);
@@ -794,6 +812,8 @@ sub fmt_footer_matrix {
 	my $table_width =
 		$width +                   # code
 		$ncol*($seplen + $maxlen); # columns
+	$table_width +=
+		($doubleseplen + length('9.9'))*(!!$show_avg);
 
 	my $result = '';
 	if ($format ne 'wiki') {
@@ -804,7 +824,8 @@ sub fmt_footer_matrix {
 			my $style = defined($rowstyle{'footer'}) ?
 			            "<rowstyle=\"$rowstyle{'footer'}\">" : '';
 			$result .= sprintf("||%s %-${width}s ||<-%d> %5d / %-5d ||\n",
-			                   $style, "Base", $ncol*2, $base, $responses);
+			                   $style, "Base", $ncol*2 + 2*!!$show_avg,
+			                   $base, $responses);
 		} else {
 			$result .= sprintf("  %-${width}s | %5d / %-5d\n", "Base",
 			                   $base, $responses);
@@ -1609,7 +1630,8 @@ sub print_question_stats {
 	# table header
 	print "\n";
 	if (exists $q->{'columns'}) {
-		print fmt_th_matrix($q->{'colname'}, $q->{'columns'});
+		print fmt_th_matrix($q->{'colname'}, $q->{'columns'},
+		                    exists $q->{'matrix'});
 	} else {
 		print fmt_th_percent($q->{'colname'});
 	}
@@ -1642,8 +1664,17 @@ sub print_question_stats {
 	my $base = $q->{'base'};
 	foreach my $row (@rows) {
 		if (exists $q->{'columns'}) {
+			my ($score, $count);
+			if (exists $q->{'matrix'} && exists $q->{'matrix'}{$row} &&
+			    defined $q->{'matrix'}{$row}{'score'} &&
+			    defined $q->{'matrix'}{$row}{'count'} &&
+			    $q->{'matrix'}{$row}{'count'} != 0) {
+				$score = $q->{'matrix'}{$row}{'score'}
+				       / $q->{'matrix'}{$row}{'count'};
+				$count = $q->{'matrix'}{$row}{'count'};
+			}
 			print fmt_row_matrix($row, $q->{'histogram'}{$row}, $base,
-			                     $q->{'columns'});
+			                     $q->{'columns'}, $score, $count);
 		} else {
 			print fmt_row_percent($row, $q->{'histogram'}{$row},
 			                      100.0*$q->{'histogram'}{$row} / $base);
@@ -1653,7 +1684,7 @@ sub print_question_stats {
 	# table footer
 	if (exists $q->{'columns'}) {
 		print fmt_footer_matrix($q->{'base'}, $nresponses,
-		                        $q->{'columns'});
+		                        $q->{'columns'}, exists $q->{'matrix'});
 	} else {
 		print fmt_footer_percent($q->{'base'}, $nresponses);
 	}
