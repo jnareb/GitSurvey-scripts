@@ -44,6 +44,8 @@ my $filename = 'Survey results Sep 16, 09.csv';
 my $respfile = 'GitSurvey2009.responses.storable';
 my $statfile = 'GitSurvey2009.stats.storable';
 
+my ($reparse, $restat);
+
 my $resp_tz = "CET"; # timezone of responses date and time
 
 
@@ -238,7 +240,7 @@ sub parse_or_retrieve_data {
 	my $responses = [];
 	local $| = 1; # autoflush
 
-	if (! -f $respfile) {
+	if (! -f $respfile || $reparse) {
 		$filename .= '.gz'
 			unless -r $filename;
 
@@ -378,7 +380,7 @@ sub make_or_retrieve_hist {
 	my ($survey_data, $responses) = @_;
 	local $| = 1; # autoflush
 
-	if (! -f $statfile) {
+	if (! -f $statfile || $restat) {
 		print STDERR "generating statistics... ";
 		prepare_hist($survey_data);
 		make_hist($survey_data, $responses);
@@ -1696,6 +1698,8 @@ GetOptions(
 	'file=s'     => \$filename,
 	'respfile=s' => \$respfile,
 	'statfile=s' => \$statfile,
+	'reparse!' => \$reparse,
+	'restat!' => \$restat,
 );
 pod2usage(1) if $help;
 
@@ -1730,6 +1734,8 @@ survey_parse_Survs_CSV(num).com - Parse data from "Git User's Survey 2009"
    --respfile=<filename>       file to save parsed responses
    --statfile=<filename>       file to save generated statistics
 
+   --reparse                   reparse CSV file even if cache exists
+   --restat                    regenerate statistics even if cache exists
 =head1 DESCRIPTION
 
 B<survey_parse_Survs_CSV(num).com.perl> is used to parse data from
