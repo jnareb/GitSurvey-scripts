@@ -241,7 +241,7 @@ sub parse_or_retrieve_data {
 	my $responses = [];
 	local $| = 1; # autoflush
 
-	if (! -f $respfile || $reparse) {
+	if (! -f $respfile) {
 		$filename .= '.gz'
 			unless -r $filename;
 
@@ -389,7 +389,7 @@ sub make_or_retrieve_hist {
 	my ($survey_data, $responses) = @_;
 	local $| = 1; # autoflush
 
-	if (! -f $statfile || $restat) {
+	if (! -f $statfile) {
 		print STDERR "generating statistics... ";
 		prepare_hist($survey_data);
 		make_hist($survey_data, $responses);
@@ -1832,6 +1832,14 @@ CSV export (numeric) from "Git User's Survey 2009" from Survs.com
 =cut
 
 Date_Init("TZ=$resp_tz", "ConvTZ=$resp_tz", "Language=English");
+
+if (-f $respfile && $reparse) {
+	unlink($respfile);
+	unlink($statfile) if (-f $statfile);
+}
+if (-f $statfile && $restat) {
+	unlink($statfile);
+}
 
 my @responses = parse_or_retrieve_data(\%survey_data);
 make_or_retrieve_hist(\%survey_data, \@responses);
