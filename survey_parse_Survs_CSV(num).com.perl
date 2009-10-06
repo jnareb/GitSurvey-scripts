@@ -26,6 +26,7 @@ use List::Util qw(max maxstr min minstr sum);
 
 use Date::Manip;
 use Locale::Country;
+use Locale::Object::Country;
 use Statistics::Descriptive;
 
 use constant DEBUG => 0;
@@ -500,6 +501,8 @@ sub normalize_country {
 	$country =~ s/ R\.O\.C\.//i;
 	$country =~ s/^\.([a-z][a-z])$/$1/i;
 	$country =~ s/[!?]+$//;
+	$country =~ s/\bMotherfucking\b //i;
+	$country =~ s/, bitch\.//;
 
 	# correct (or normalize) spelling
 	$country =~ s/\b(?:Amerrica|Ameircia)\b/America/i;
@@ -518,7 +521,7 @@ sub normalize_country {
 	$country =~ s/\bM.*xico\b/Mexico/i;
 	$country =~ s/\bMolodva\b/Moldova/i;
 	$country =~ s/\bSapin\b/Spain/i;
-	$country =~ s/^Serbia$/Serbia and Montenegro/i;
+	$country =~ s/^Serbia$/Serbia and Montenegro/i; # outdated info
 	$country =~ s/\b(?:Sitzerland|Swtzerland)\b/Switzerland/i;
 	$country =~ s/\bSwedeb\b/Sweden/i;
 	$country =~ s/\bUnited Kindom\b/United Kingdom/i;
@@ -537,6 +540,7 @@ sub normalize_country {
 	# other fixes and expansions
 	$country =~ s/^PRC$/China/i; # People's Republic of China
 	$country =~ s/^U[Kk]$/United Kingdom/;
+	$country =~ s/\bUK\b/United Kingdom/i;
 	$country =~ s/ \(Rep. of\)/, Republic of/;
 	$country =~ s/\b(?:Unites|Unitered)\b/United/i;
 	$country =~ s/\bStatus\b/States/i;
@@ -590,6 +594,26 @@ sub normalize_age {
 	} else {
 		return '76+  ';
 	}
+}
+
+# ......................................................................
+
+sub country2continent {
+	my $country_name = shift;
+
+	#return "Unknown"
+	#	unless (scalar grep { $_ eq $country_name } @country_names);
+
+	# silence warnings for nonexistent countries (invalid names)
+	no warnings;
+	local $SIG{__WARN__} = sub {};
+
+	my $country = Locale::Object::Country->new(
+		name => $country_name
+	);
+	return $country->continent->name
+		if ($country);
+	return "Unknown";
 }
 
 # ----------------------------------------------------------------------
@@ -874,7 +898,8 @@ my @survey_data =
 	 'Q1' =>
 	 {'title' => '01. What country do you live in?',
 	  'colname' => 'Country',
-	  'hist'  => \&normalize_country},
+	  'hist'  => \&normalize_country,
+	  'post'  => \&print_continents_stats},
 	 'Q2' =>
 	 {'title' => '02. How old are you (in years)?',
 	  'colname' => 'Age',
@@ -1710,6 +1735,38 @@ sub print_question_stats {
 	}
 }
 
+# ......................................................................
+
+sub print_continents_stats {
+	#my ($survey_data, $responses) = @_;
+	my ($q, $nresponses, $sort) = @_;
+	my %continent_hist = (
+		# http://www.worldatlas.com/cntycont.htm
+		'Africa' => 0,
+		'Asia' => 0,
+		'Europe' => 0,
+		'North America' => 0,
+		'South America' => 0,
+		'Oceania' => 0,
+		# catch for malformed country names
+		'Unknown' => 0,
+	);
+
+	for my $country (keys %{$q->{'histogram'}}) {
+		my $continent = country2continent($country);
+		next unless exists $continent_hist{$continent};
+
+		$continent_hist{$continent} += $q->{'histogram'}{$country};
+	}
+
+	print fmt_th_percent('Continent');
+	my $base = $q->{'base'};
+	for my $continent (sort keys %continent_hist) {
+		my $data = $continent_hist{$continent};
+		print fmt_row_percent($continent, $data, 100.0*$data / $base);
+	}
+}
+
 # ======================================================================
 # ======================================================================
 # ======================================================================
@@ -1818,6 +1875,9 @@ if ($resp_only) {
 	my $q = $survey_data{"Q$resp_only"};
 
 	print_question_stats($q, $nresponses, $sort);
+	if (ref($q->{'post'}) eq 'CODE') {
+		$q->{'post'}($q, $nresponses, $sort);
+	}
 
 } else {
 
