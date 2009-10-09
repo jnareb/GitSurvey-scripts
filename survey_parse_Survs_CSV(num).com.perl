@@ -616,6 +616,72 @@ sub country2continent {
 	return "Unknown";
 }
 
+# syntactic sugar for iterators, from "Higher Order Perl"
+sub NEXTVAL { return $_[0]->() }
+sub Iterator (&) { return $_[0] }
+
+# start: response_number, time, delta_time
+# step: time += delta_time, response_number[time] >= time
+sub iresptime {
+	my ($responses, $respno, $time, $delta) = @_;
+	#$time  = ParseDate($time);
+	#$delta = ParseDateDelta($delta);
+
+	return Iterator {
+		while (defined $responses->[$respno] &&
+		       Date_Cmp($responses->[$respno][0]{'parsed_date'}, $time) < 0) {
+			$respno++;
+		}
+		$time = DateCalc($time,$delta);
+		return defined $responses->[$respno] ? $respno : undef;
+	}
+}
+
+sub i2resptime {
+	my ($responses, $respno, $time, $delta) = @_;
+	#$time  = ParseDate($time);
+	#$delta = ParseDateDelta($delta);
+
+	if (!defined $time) {
+		$time = $responses->[0][0]{'parsed_date'};
+	}
+
+	my $tlo = DateCalc($time, "-12 hours");
+	my $thi = DateCalc($time, "+12 hours");
+	my $itlo = iresptime($responses, $respno, $tlo, $delta);
+	my $ithi = iresptime($responses, $respno, $thi, $delta);
+
+	return Iterator {
+		my ($lo, $hi) = (NEXTVAL($itlo), NEXTVAL($ithi));
+		return
+			unless (defined $lo || defined $hi);
+		return ($lo, $hi);
+	}
+}
+
+sub ifloating_resp_per_day_avg {
+	my ($responses, $respno, $time, $delta) = @_;
+	my $iter = i2resptime(@_);
+	my $nresponses = scalar @$responses;
+
+	if (!defined $time) {
+		$time = $responses->[0][0]{'parsed_date'};
+	}
+
+	return Iterator {
+		my ($lo, $hi) = NEXTVAL($iter);
+		return
+			unless (defined $lo || defined $hi);
+		$lo = 0 unless defined $lo;
+		$hi = $nresponses-1 unless defined $hi;
+
+		my @result = ($time, $hi-$lo);
+		$time = DateCalc($time,$delta);
+
+		return @result;
+	}
+}
+
 # ----------------------------------------------------------------------
 # Format output
 
@@ -904,6 +970,7 @@ my @survey_data =
 	 {'title' => '02. How old are you (in years)?',
 	  'colname' => 'Age',
 	  'hist' => \&normalize_age,
+	  'post' => \&print_age_hist,
 	  'histogram' =>
 		{' < 18' => 0,
 		 '18-21' => 0,
@@ -1521,22 +1588,44 @@ sub delete_sections {
 # ======================================================================
 # ----------------------------------------------------------------------
 
+sub fmt_reltime {
+	my $seconds = shift;
+
+	if ($seconds < 60) {
+		return Delta_Format($seconds, 0, '%sh s');
+	} elsif ($seconds < 60*60) {
+		return Delta_Format($seconds, 0, '%mh m %sv s');
+	} elsif ($seconds < 60*60*24) {
+		return Delta_Format($seconds, 0, '%hh h %mv m %sv s');
+	} else {
+		return Delta_Format($seconds, 0, '%dh d %hv h %mv m %sv s');
+	}
+}
+
 # print histogram of date of response,
 # in format suitable for datafile e.g for gnuplot
 sub print_date_hist {
-	my $survey_data = shift;
+	my ($survey_data, $responses) = @_;
 
 
-	print "# 1:date 2:responses\n";
+	print "# 1:date 2:'12:00:00'(noon)  3:responses\n";
 	my $num = 0;
  DATE:
 	foreach my $date (sort keys %{$survey_data->{'histogram'}{'date'}}) {
-		print "$date $survey_data{'histogram'}{'date'}{$date}\n";
+		print "$date 12:00:00  $survey_data{'histogram'}{'date'}{$date}\n";
 		$num += $survey_data{'histogram'}{'date'}{$date};
 	}
-	print "\n";
-	
-	print "# responses with date field: $num\n\n";
+	print "# responses with date field: $num\n\n\n";
+
+
+	print "# 1:date 2:time  3:avg_resp_per_day\n";
+	my $dt = ParseDateDelta("+1 hour");
+	my $iter = ifloating_resp_per_day_avg($responses, 0, undef, $dt);
+	my $date_fmt = '%Y-%m-%d %H:%M:%S';
+	while (my ($time, $count) = NEXTVAL($iter)) {
+		last unless (defined $time && defined $count);
+		print UnixDate($time, $date_fmt)."  $count\n";
+	}
 }
 
 # print histogram of number of responses per question,
@@ -1626,6 +1715,25 @@ sub print_base_stats {
 	        " ($survey_data->{'nquestions'} means no question answered)\n".
 	      "- min:    ".$stat->min().
 	        " (0 means all questions answered)\n\n";
+	$stat->clear();
+
+	for (my $respno = 1; $respno < @$responses; $respno++) {
+		my $date_prev = $responses->[$respno-1][0]{'parsed_date'};
+		my $date_curr = $responses->[$respno  ][0]{'parsed_date'};
+		my $delta = DateCalc($date_prev, $date_curr);
+		my $delta_secs = Delta_Format($delta, 0, '%sh');
+		$stat->add_data($delta_secs);
+	}
+	print "\ndate of response stats\n".
+	      "- count:  ".$stat->count()." (deltas)\n".
+	      "- min dist: ".fmt_reltime($stat->min()).
+	      " = ".$stat->min()." seconds\n".
+	      "- max dist: ".fmt_reltime($stat->max()).
+	      " = ".$stat->max()." seconds\n".
+	      "- avg dist: ".$stat->mean().
+	      " +/- ".$stat->standard_deviation()." seconds\n".
+	      "            ".fmt_reltime(int($stat->mean()+0.5)).
+	      " +/- ".fmt_reltime(int($stat->standard_deviation()+0.5))."\n\n";
 	$stat->clear();
 }
 
@@ -1739,7 +1847,7 @@ sub print_question_stats {
 
 sub print_continents_stats {
 	#my ($survey_data, $responses) = @_;
-	my ($q, $nresponses, $sort) = @_;
+	my ($responses, $q, $nresponses, $sort) = @_;
 	my %continent_hist = (
 		# http://www.worldatlas.com/cntycont.htm
 		'Africa' => 0,
@@ -1767,13 +1875,43 @@ sub print_continents_stats {
 	}
 }
 
+sub print_age_hist {
+	my ($responses, $q, $nresponses, $sort) = @_;
+	my %age_hist;
+
+ RESPONSE:
+	foreach my $r (@$responses) {
+		my $age = $r->[2]{'original'};
+		next RESPONSE
+			unless (defined $age && $age =~ m/(\d+)/);
+		$age = $1;
+
+		#print "$age $r->[2]{'contents'}\n";
+
+		if (exists $age_hist{$age}) {
+			$age_hist{$age}++;
+		} else {
+			$age_hist{$age} = 1;
+		}
+	}
+
+	print "# 1:age 2:count\n";
+	my @ages = sort { $a <=> $b } keys %age_hist;
+	my ($min_age, $max_age) = (0, min($ages[-1],99));
+	for (my $age = $min_age; $age <= $max_age; $age++) {
+		my $count = $age_hist{$age} || 0;
+		printf("%-2d %d\n", $age, $count);
+	}
+	print "# min=$ages[0]; max=$ages[-1]\n";
+}
+
 # ======================================================================
 # ======================================================================
 # ======================================================================
 # MAIN
 
 my $help = 0;
-my ($resp_only, $sort);
+my ($resp_only, $sort, $hist);
 
 GetOptions(
 	'help|?' => \$help,
@@ -1782,6 +1920,8 @@ GetOptions(
 	'text' => sub { $format = 'text' },
 	'min-width|width|w=i' => \$min_width,
 	'only|o=i' => \$resp_only,
+	'resp-hist' => sub { $hist = 'resp' },
+	'date-hist' => sub { $hist = 'date' },
 	'sort!' => \$sort,
 	'file=s'     => \$filename,
 	'respfile=s' => \$respfile,
@@ -1813,6 +1953,9 @@ survey_parse_Survs_CSV(num).com - Parse data from "Git User's Survey 2009"
    --wiki                      set 'wiki' (MoinMoin) output format
    --text                      set 'text' output format
    -w,--min-width=<width>      minimum width of first column
+
+   --date-hist                 print only histogram of dates
+   --resp-hist                 print only histogram of responses
 
    --only=<question number>    display only results for given question
    --sort                      sort tables by number of responses
@@ -1846,6 +1989,16 @@ make_or_retrieve_hist(\%survey_data, \@responses);
 
 my $nquestions = $survey_data{'nquestions'};
 my $nresponses = scalar @responses;
+
+if (defined $hist) {
+	if ($hist eq 'date') {
+		print_date_hist(\%survey_data, \@responses);
+		exit 0;
+	} elsif ($hist eq 'resp') {
+		print_resp_hist(\%survey_data);
+		exit 0;
+	}
+}
 
 unless ($resp_only) {
 	print "There were $nresponses individual responses\n\n";
@@ -1884,7 +2037,8 @@ if ($resp_only) {
 
 	print_question_stats($q, $nresponses, $sort);
 	if (ref($q->{'post'}) eq 'CODE') {
-		$q->{'post'}($q, $nresponses, $sort);
+		# \@responses are needed if post sub wants to re-analyze data
+		$q->{'post'}(\@responses, $q, $nresponses, $sort);
 	}
 
 } else {
