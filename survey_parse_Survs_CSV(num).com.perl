@@ -675,11 +675,35 @@ sub ifloating_resp_per_day_avg {
 		$lo = 0 unless defined $lo;
 		$hi = $nresponses-1 unless defined $hi;
 
-		my @result = ($time, $hi-$lo);
+		my ($frac_lo, $frac_hi) = (0.0, 0.0);
+		my ($t1, $t2);
+		if (defined $lo && $lo-1 >= 0) {
+			$t1 = $responses->[$lo-1][0]{'parsed_date'};
+			$t2 = $responses->[$lo  ][0]{'parsed_date'};
+			$frac_lo = time_duration_frac($t1, $t2, DateCalc($time, "-12 hours"));
+			$frac_lo = defined $frac_lo ? 1.0 - $frac_lo : 0.0;
+		}
+		if (defined $hi && $hi-1 >= 0) {
+			$t1 = $responses->[$hi-1][0]{'parsed_date'};
+			$t2 = $responses->[$hi  ][0]{'parsed_date'};
+			$frac_hi = time_duration_frac($t1, $t2, DateCalc($time, "+12 hours"));
+			$frac_hi = defined $frac_hi ? 1.0 - $frac_hi : 0.0;
+		}
+
+		my @result = ($time, $hi-$lo, $hi-$lo + $frac_lo - $frac_hi);
 		$time = DateCalc($time,$delta);
 
 		return @result;
 	}
+}
+
+# find alpha such that MID = alpha*[LO, HI]
+sub time_duration_frac {
+	my ($lo, $hi, $mid) = map { UnixDate($_, '%s') } @_;
+
+	# MID = alpha*[LO, HI]  <=>  MID = LO + alpha*(HI - LO)
+	# solution: alpha = (mid - lo)/(hi - lo)
+	return ($mid - $lo)/($hi - $lo);
 }
 
 # ----------------------------------------------------------------------
@@ -1618,13 +1642,13 @@ sub print_date_hist {
 	print "# responses with date field: $num\n\n\n";
 
 
-	print "# 1:date 2:time  3:avg_resp_per_day\n";
+	print "# 1:date 2:time  3:avg_resp_per_day 4:avg_resp_per_day(fract)\n";
 	my $dt = ParseDateDelta("+1 hour");
 	my $iter = ifloating_resp_per_day_avg($responses, 0, undef, $dt);
 	my $date_fmt = '%Y-%m-%d %H:%M:%S';
-	while (my ($time, $count) = NEXTVAL($iter)) {
+	while (my ($time, $count, $count_adj) = NEXTVAL($iter)) {
 		last unless (defined $time && defined $count);
-		print UnixDate($time, $date_fmt)."  $count\n";
+		print UnixDate($time, $date_fmt)."  $count $count_adj\n";
 	}
 }
 
