@@ -1539,6 +1539,7 @@ EOF
 	 'S7' => {'section_title' => 'About this survey. Open forum.'},
 	 'Q29' =>
 	 {'title' => "29. How did you hear about this Git User's Survey?",
+	  'post' => \&print_date_divided_announce_hist,
 	  'other' => 1,
 	  'codes' =>
 		['git mailing list',
@@ -1902,15 +1903,14 @@ sub print_continents_stats {
 sub print_age_hist {
 	my ($responses, $q, $nresponses, $sort) = @_;
 	my %age_hist;
+	my $qno = 2;
 
  RESPONSE:
 	foreach my $r (@$responses) {
-		my $age = $r->[2]{'original'};
+		my $age = $r->[$qno]{'original'};
 		next RESPONSE
 			unless (defined $age && $age =~ m/(\d+)/);
 		$age = $1;
-
-		#print "$age $r->[2]{'contents'}\n";
 
 		if (exists $age_hist{$age}) {
 			$age_hist{$age}++;
@@ -1927,6 +1927,61 @@ sub print_age_hist {
 		printf("%-2d %d\n", $age, $count);
 	}
 	print "# min=$ages[0]; max=$ages[-1]\n";
+}
+
+# print histogram of number of responses per date,
+# divided per survey announcement (how heard about survey)
+sub print_date_divided_announce_hist {
+	my ($responses, $q, $nresponses, $sort) = @_;
+	my %dates_hist;
+	my %heard_hist;
+	my $qno = 29;
+
+ RESPONSE:
+	foreach my $r (@$responses) {
+		my $date  = $r->[0]{'date'};
+		my $cont  = $r->[$qno]{'contents'};
+		my $heard = 'unknown';
+		if (defined $cont && $cont =~ /^\d+$/ &&
+		    exists $q->{'codes'}[$cont-1]) {
+			$heard = $q->{'codes'}[$cont-1];
+		}
+		$dates_hist{$date} ||= {};
+		add_to_hist($dates_hist{$date}, $heard);
+		add_to_hist(\%heard_hist, $heard);
+	}
+
+	print "# 1:date 2:'12:00:00'(noon)\n";
+	for (my $i = 0; $i < @{$q->{'codes'}}; $i++) {
+		print "#  ".($i+3).":$q->{'codes'}[$i]\n";
+	}
+	print "#  ".(@{$q->{'codes'}}+3).":unknown\n";
+
+ DATE:
+	foreach my $date (sort keys %dates_hist) {
+		print "$date 12:00:00 ";
+		for (my $i = 0; $i < @{$q->{'codes'}}; $i++) {
+			my $heard = $q->{'codes'}[$i];
+			if (defined $dates_hist{$date}{$heard}) {
+				printf(" %3d", $dates_hist{$date}{$heard});
+			} else {
+				print "   0";
+			}
+		}
+		printf("  %3d", $dates_hist{$date}{'unknown'} || 0);
+		print "\n";
+	}
+
+	#      2009-09-16 12:00:00
+	print "# total             ";
+	foreach my $heard (@{$q->{'codes'}}, 'unknown') {
+		if (defined $heard_hist{$heard}) {
+			printf(" %3d", $heard_hist{$heard});
+		} else {
+			print "   0";
+		}
+	}
+	print "\n";
 }
 
 # ======================================================================
