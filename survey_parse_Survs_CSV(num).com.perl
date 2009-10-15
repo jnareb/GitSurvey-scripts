@@ -988,13 +988,13 @@ my @survey_data =
 	 'Q1' =>
 	 {'title' => '01. What country do you live in?',
 	  'colname' => 'Country',
-	  'hist'  => \&normalize_country,
-	  'post'  => \&print_continents_stats},
+	  'hist' => \&normalize_country,
+	  'post' => \&post_print_continents_stats},
 	 'Q2' =>
 	 {'title' => '02. How old are you (in years)?',
 	  'colname' => 'Age',
 	  'hist' => \&normalize_age,
-	  'post' => \&print_age_hist,
+	  'post' => \&post_print_age_hist,
 	  'histogram' =>
 		{' < 18' => 0,
 		 '18-21' => 0,
@@ -1539,7 +1539,7 @@ EOF
 	 'S7' => {'section_title' => 'About this survey. Open forum.'},
 	 'Q29' =>
 	 {'title' => "29. How did you hear about this Git User's Survey?",
-	  'post' => \&print_date_divided_announce_hist,
+	  'post' => \&post_print_date_divided_announce_hist,
 	  'other' => 1,
 	  'codes' =>
 		['git mailing list',
@@ -1870,9 +1870,9 @@ sub print_question_stats {
 
 # ......................................................................
 
-sub print_continents_stats {
-	#my ($survey_data, $responses) = @_;
-	my ($responses, $q, $nresponses, $sort) = @_;
+sub post_print_continents_stats {
+	my ($survey_data, $responses, $qno, $nresponses, $sort) = @_;
+	my $q = $survey_data->{"Q$qno"};
 	my %continent_hist = (
 		# http://www.worldatlas.com/cntycont.htm
 		'Africa' => 0,
@@ -1900,10 +1900,10 @@ sub print_continents_stats {
 	}
 }
 
-sub print_age_hist {
-	my ($responses, $q, $nresponses, $sort) = @_;
+sub post_print_age_hist {
+	my ($survey_data, $responses, $qno, $nresponses, $sort) = @_;
+	my $q = $survey_data->{"Q$qno"};
 	my %age_hist;
-	my $qno = 2;
 
  RESPONSE:
 	foreach my $r (@$responses) {
@@ -1931,11 +1931,11 @@ sub print_age_hist {
 
 # print histogram of number of responses per date,
 # divided per survey announcement (how heard about survey)
-sub print_date_divided_announce_hist {
-	my ($responses, $q, $nresponses, $sort) = @_;
+sub post_print_date_divided_announce_hist {
+	my ($survey_data, $responses, $qno, $nresponses, $sort) = @_;
+	my $q = $survey_data->{"Q$qno"};
 	my %dates_hist;
 	my %heard_hist;
-	my $qno = 29;
 
  RESPONSE:
 	foreach my $r (@$responses) {
@@ -2117,7 +2117,8 @@ if ($resp_only) {
 	print_question_stats($q, $nresponses, $sort);
 	if (ref($q->{'post'}) eq 'CODE') {
 		# \@responses are needed if post sub wants to re-analyze data
-		$q->{'post'}(\@responses, $q, $nresponses, $sort);
+		$q->{'post'}(\%survey_data, \@responses, $resp_only,
+		             $nresponses, $sort);
 	}
 
 } else {
