@@ -22,6 +22,9 @@ use Text::Wrap;
 use Getopt::Long;
 use Pod::Usage;
 use List::Util qw(max maxstr min minstr sum);
+use Term::ReadLine;
+#use Term::ReadKey;
+#use Term::ANSIColor;
 #use File::Basename;
 
 use Date::Manip;
@@ -34,8 +37,9 @@ use constant DEBUG => 0;
 # Storable uses *.storable, YAML uses *.yml
 use Data::Dumper;
 use Storable qw(store retrieve);
-#use YAML::Tiny qw(Dump Load);
-#use YAML;
+# YAML::Tiny has strange "'" escaping
+#use YAML::Tiny qw(DumpFile LoadFile);
+use YAML qw(DumpFile LoadFile);
 
 binmode STDOUT, ':utf8';
 
@@ -44,6 +48,7 @@ binmode STDOUT, ':utf8';
 my $filename = 'Survey results Sep 16, 09.csv';
 my $respfile = 'GitSurvey2009.responses.storable';
 my $statfile = 'GitSurvey2009.stats.storable';
+my $otherfile = 'GitSurvey2009.other_repl.yml'; # user-editable
 
 my ($reparse, $restat);
 
@@ -416,7 +421,7 @@ sub extract_hist {
 	foreach my $key (keys %$src) {
 		my $val = $src->{$key};
 
-		if ($key =~ m/^(?: skipped | base | matrix | histogram )/x) {
+		if ($key =~ m/^(?: col | skipped | base | matrix | histogram )/x) {
 			$dst->{$key} = $val;
 		} elsif (ref($val) eq 'HASH') {
 			$val = extract_hist($val);
@@ -441,6 +446,297 @@ sub union_hash {
 			$base->{$key} = $val;
 		}
 	}
+}
+
+# ----------------------------------------------------------------------
+# Analysis of 'other, please specify' responses
+
+sub init_other {
+	my ($survey_data) = @_;
+	my $nquestions = $survey_data->{'nquestions'};
+	my %other_repl;
+
+ QUESTION:
+	for (my $qno = 1; $qno <= $nquestions; $qno++) {
+		my $qinfo = $survey_data->{"Q$qno"};
+		next unless (defined $qinfo && $qinfo->{'other'});
+
+		my $ncols = 1;
+		$ncols = @{$qinfo->{'codes'}}
+			if (exists $qinfo->{'codes'} && $qinfo->{'multi'});
+		#print "Q$qno: col=$qinfo->{'col'}; ncols=$ncols\n";
+		$other_repl{"Q$qno"} = {
+			'title' => $qinfo->{'title'},
+			'col' => $qinfo->{'col'} + $ncols,
+			'repl' => [],
+		};
+	}
+
+	return wantarray ? %other_repl : \%other_repl;
+}
+
+sub init_or_retrieve_other {
+	my ($survey_data) = @_;
+	my %other_repl;
+
+	local $| = 1; # autoflush
+
+	if (! -f $otherfile) {
+		print STDERR "initializing data for analysis of 'other' responses... ";
+		%other_repl = init_other($survey_data);
+		print STDERR "(done)\n";
+
+		print STDERR "storing in '$otherfile'... ";
+		DumpFile($otherfile, \%other_repl);
+		print STDERR "(done)\n";
+	} else {
+		print STDERR "retrieving from '$otherfile'... ";
+		my @entries = LoadFile($otherfile);
+		%other_repl = %{$entries[0]};
+		print STDERR "(done)\n";
+	}
+	return wantarray ? %other_repl : \%other_repl;
+}
+
+sub make_other_hist {
+	my ($survey_data, $responses, $other_repl, $qno) = @_;
+
+	if (!$qno || !$other_repl->{"Q$qno"}) {
+		print Dumper($other_repl);
+
+	} else {
+		#print Dumper($other_repl->{"Q$qno"});
+
+		my $qinfo = $survey_data->{"Q$qno"};
+		my $orepl = $other_repl->{"Q$qno"};
+
+		my $term = Term::ReadLine->new('survey_parse');
+		$term->addhistory($_)
+			foreach (@{$qinfo->{'codes'}});
+		$term->MinLine(undef); # do not include anthing in history
+
+		my $respno = $orepl->{'last'} || 0;
+		my $nresponses = scalar @$responses;
+		my $new_rules = 0;
+		my $other_categorized = 0;
+		my $other_passed = 0;
+		my $other_skipped = 0;
+
+		# 'other, please specify' is always last code
+		my $other_all = $qinfo->{'histogram'}{$qinfo->{'codes'}[-1]};
+
+		if ($respno < $nresponses) {
+			print fmt_question_title($qinfo->{'title'});
+			print question_type_description($qinfo)."\n\n";
+		}
+
+		my $skip_asking = 0;
+
+	RESPONSE:
+		for ( ; $respno < $nresponses; $respno++) {
+			my $resp = $responses->[$respno];
+			my $qresp = $resp->[$qno];
+
+			next if ($qresp->{'skipped'});
+			next unless ($qresp->{'other'});
+
+			my $other = $qresp->{'other'};
+			$other_passed++;
+
+			print "----- [$resp->[0]{'date'}] $respno / $nresponses ".
+			      "$other_passed / $other_all\n";
+			if ($qresp->{'contents'}) {
+				if (ref($qresp->{'contents'}) eq 'ARRAY') {
+					# multiple-choice
+					print ">>".$qinfo->{'codes'}[$_-1]."\n"
+						foreach (@{$qresp->{'contents'}});
+				} else {
+					# single choice
+					print "#>".$qinfo->{'codes'}[$qresp->{'contents'}-1]."\n";
+				}
+			}
+			print "$other\n";
+
+			my @categories =
+				categorize_response($orepl->{'repl'}, $respno, $other);
+			my $matched = scalar @categories;
+
+			$other_categorized++ if $matched;
+			if ($matched) {
+				update_other_hist($orepl, $qinfo, $qresp, @categories);
+				next RESPONSE;
+			};
+
+			my $rule = ''; # default is skip response
+			$rule = ask_rules($term, $respno, $other)
+				unless $skip_asking;
+			if (!defined $rule) {
+				$other_skipped = "all from $respno";
+				last RESPONSE;
+			}
+			if (!$rule) {
+				$other_skipped++;
+				next RESPONSE;
+			}
+			if ($rule eq 'passthrough') {
+				$other_skipped++;
+				$skip_asking = 1;
+				next RESPONSE;
+			}
+			$other_categorized++;
+
+			push @{$orepl->{'repl'}}, $rule;
+			push @categories, $rule->{'category'}
+				if exists $rule->{'category'};
+			$new_rules++;
+
+			update_other_hist($orepl, $qinfo, $qresp, @categories);
+
+		}
+
+		$orepl->{'last'} = $respno;
+		$orepl->{'skipped'} = $other_skipped;
+		print "Finished at response $respno of $nresponses\n"
+			if ($respno < $nresponses);
+		print "There were ".(scalar @{$orepl->{'repl'}})." rules ".
+		      "(including $new_rules new rules)\n"
+			if (scalar @{$orepl->{'repl'}});
+		print "There were $other_categorized categorized out of ".
+		      "$other_passed passed, out of $other_all together\n";
+		print "Skipped $other_skipped responses\n"
+			if $other_skipped;
+
+		#print Dumper($orepl);
+
+		# if there were new rules, or we updated histogram
+		# if ($new_rules)
+		{
+			local $! = 1; # autoflush
+			print STDERR "storing new rules and histogram in '$otherfile'... ";
+			DumpFile($otherfile, $other_repl);
+			print STDERR "(done)\n";
+		}
+	}
+}
+
+# given REPLACEMENTS (rules), RESPONSE_NUMBER and ANSWER,
+# return list of categories ANSWER belongs to
+sub categorize_response {
+	my ($repl_rules, $respno, $answer) = @_;
+	my @categories;
+
+ RULE:
+	for (my $i = 0; $i < @$repl_rules; $i++) {
+		my $rule = $repl_rules->[$i];
+		my ($regex, $val) = @$rule{'match','category'};
+
+		if (defined $regex && $answer =~ /$regex/) {
+			print "* /$regex/ matched => '$val'\n";
+			push @categories, $val;
+
+		} elsif (defined($rule->{'respno'}) &&
+		         $rule->{'respno'} == $respno) {
+			print "* response number [$respno] => '$val'\n";
+			push @categories, $val;
+
+		}
+	} # end RULE
+
+	return @categories;
+}
+
+# interactive, returns a rule
+# return values:
+#  * () / undef - skip all
+#  * ''         - skip response
+#  * one of the following kind of rules:
+#    - { 'match' =>regexp, 'category'=>category }
+#    - { 'respno'=>number, 'category'=>category }
+sub ask_rules {
+	my ($term, $respno, $answer) = @_;
+	my ($matched, $rule);
+
+	print "Give regexp ".
+	      "(or '.' to match line,".
+	      " or RET to skip reply,". # " or / to autoskip,".
+	      " or ^D to skip all):\n";
+
+ TRY: {
+		do {
+			$rule = $term->readline('INPUT> ');
+
+			if (!defined $rule) {
+				# ^D = EOF to skip all
+				print "\n. stop analysis (skip all)\n";
+				return;
+			}
+			if ($rule eq '') {
+				# RET to skip response
+				print "+ skipping '$answer'\n";
+				return '';
+			}
+			if ($rule eq '/') {
+				# RET to skip response
+				print "+ skipping all answers\n";
+				return 'passthrough';
+			}
+
+			if ($rule eq '.') {
+				#print "+ [$respno] is '$answer'\n";
+				$rule = $respno;
+				$matched = 'respno';
+			} elsif ($answer =~ /$rule/) {
+				#print "+ /$regex/ matched '$answer'\n";
+				$matched = 'match';
+			} else {
+				print "- /$rule/ didn't match '$answer'\n";
+			}
+
+		} while (!$matched);
+	} # TRY:
+
+	print "Give value (category):\n";
+	my $val = $term->readline('INPUT> ');
+
+	if ($val) {
+		$term->addhistory($val);
+		print "+ $matched: $rule => '$val'\n";
+		return { $matched => $rule, 'category' => $val };
+	}
+	print "\n. skipping all\n";
+	return;
+}
+
+sub update_other_hist {
+	my ($orepl, $qinfo, $response, @categories) = @_;
+	return unless @categories;
+
+	if (!exists $orepl->{'histogram'}) {
+		$orepl->{'histogram'} = {};
+	}
+	my @answers =
+		map { $qinfo->{'codes'}[$_-1] }
+		grep { defined && /^\d+$/ }
+		(ref($response->{'contents'}) ?
+		   @{$response->{'contents'}} : $response->{'contents'});
+
+	# rules:
+	# - if category matches answer (for multiple-choice)
+	#   it is an explanation, and do not add to histogram
+	# - if category matches pre-defined answer, but answer was not
+	#   selected, it is correction, and should be added to histogram
+	# - if category is new, it should be added to histogram
+
+	my $has_explanation = 0;
+	foreach my $category (@categories) {
+		if (grep { $_ eq $category } @answers) {
+			$has_explanation = 1;
+		} else {
+			add_to_hist($orepl->{'histogram'}, $category);
+		}
+	}
+	add_to_hist($orepl->{'histogram'}, 'EXPLANATION')
+		if $has_explanation;
 }
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1990,7 +2286,7 @@ sub post_print_date_divided_announce_hist {
 # MAIN
 
 my $help = 0;
-my ($resp_only, $sort, $hist);
+my ($resp_only, $sort, $hist, $reanalyse);
 
 GetOptions(
 	'help|?' => \$help,
@@ -2007,6 +2303,7 @@ GetOptions(
 	'statfile=s' => \$statfile,
 	'reparse!' => \$reparse,
 	'restat!' => \$restat,
+	'reanalyse|reanalyze!' => \$reanalyse,
 );
 pod2usage(1) if $help;
 
@@ -2046,6 +2343,7 @@ survey_parse_Survs_CSV(num).com - Parse data from "Git User's Survey 2009"
 
    --reparse                   reparse CSV file even if cache exists
    --restat                    regenerate statistics even if cache exists
+   --reanalyse                 reanalyse 'other, please specify' answers
 =head1 DESCRIPTION
 
 B<survey_parse_Survs_CSV(num).com.perl> is used to parse data from
@@ -2065,6 +2363,7 @@ if (-f $statfile && $restat) {
 
 my @responses = parse_or_retrieve_data(\%survey_data);
 make_or_retrieve_hist(\%survey_data, \@responses);
+my %other_repl = init_or_retrieve_other(\%survey_data);
 
 my $nquestions = $survey_data{'nquestions'};
 my $nresponses = scalar @responses;
@@ -2106,6 +2405,20 @@ unless ($resp_only) {
 if (defined $resp_only && $resp_only == 0) {
 	exit 0;
 }
+
+#$other_repl{$_}{'title'} = $survey_data{$_}{'title'}
+#	foreach (grep /^Q[0-9]+$/, keys %other_repl);
+
+if ($reanalyse) {
+	if ($resp_only) {
+		$other_repl{"Q$resp_only"}{'last'} = 0;
+	} else {
+		$other_repl{$_}{'last'} = 0
+			foreach (keys %other_repl);
+	}
+}
+make_other_hist(\%survey_data, \@responses,
+                \%other_repl, $resp_only);
 
 # ===========================================================
 # Print results
