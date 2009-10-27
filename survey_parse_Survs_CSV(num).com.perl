@@ -451,6 +451,9 @@ sub union_hash {
 # ----------------------------------------------------------------------
 # Analysis of 'other, please specify' responses
 
+# ask for categorizing even those response that match some rule
+my $ask_categorized = 0;
+
 sub init_other {
 	my ($survey_data) = @_;
 	my $nquestions = $survey_data->{'nquestions'};
@@ -525,6 +528,9 @@ sub make_other_hist {
 		# 'other, please specify' is always last code
 		my $other_all = $qinfo->{'histogram'}{$qinfo->{'codes'}[-1]};
 
+		$orepl->{'skipped'} = 0
+			if (exists $orepl->{'skipped'} && !$orepl->{'last'});
+
 		if ($respno < $nresponses) {
 			print fmt_question_title($qinfo->{'title'});
 			print question_type_description($qinfo)."\n\n";
@@ -562,10 +568,13 @@ sub make_other_hist {
 			my $matched = scalar @categories;
 
 			$other_categorized++ if $matched;
-			if ($matched) {
+			if ($matched && !$ask_categorized) {
 				update_other_hist($orepl, $qinfo, $qresp, @categories);
 				next RESPONSE;
-			};
+			}
+			if ($matched && $ask_categorized) {
+				print "c>$_\n" foreach (@categories);
+			}
 
 			my $rule = ''; # default is skip response
 			$rule = ask_rules($term, $respno, $other)
@@ -592,10 +601,11 @@ sub make_other_hist {
 
 			update_other_hist($orepl, $qinfo, $qresp, @categories);
 
-		}
+		} # RESPONSE
 
 		$orepl->{'last'} = $respno;
-		$orepl->{'skipped'} = $other_skipped;
+		$orepl->{'skipped'} ||= $other_skipped
+			if ($other_skipped);
 		print "Finished at response $respno of $nresponses\n"
 			if ($respno < $nresponses);
 		print "There were ".(scalar @{$orepl->{'repl'}})." rules ".
@@ -2164,6 +2174,55 @@ sub print_question_stats {
 	}
 }
 
+sub print_other_stats {
+	my ($question_info, $other_info, $nresponses, $sort) = @_;
+
+	# find width of widest element, starting with $width from the
+	# histogram of answers
+	$width = max($min_width, $width,
+		map(length, keys %{$other_info->{'histogram'}}));
+
+	# table header; 'other, please specify' answer can be present only
+	# for single-choice and multiple-choice questions
+	print "\n";
+	print fmt_th_percent($question_info->{'colname'});
+
+	# sorting is not implemented yet (!!!)
+
+	# table body
+	my $base = $question_info->{'base'};
+	my $other_name = $question_info->{'codes'}[-1];
+	my $nother = $question_info->{'histogram'}{$other_name};
+
+	# sorting: first display corrections, i.e. categories which are
+	# pre-defined answers, then 'explanation' meta-category, then
+	# categories sorted aplhabetically (or by number of answers)
+	my %cat_used = map { $_ => 0 } keys %{$other_info->{'histogram'}};
+	my @categories = ();
+	push @categories,
+		grep { exists $other_info->{'histogram'}{$_} and $cat_used{$_} = 1 }
+		@{$question_info->{'codes'}};
+	push @categories, 'EXPLANATION'
+		if exists $other_info->{'histogram'}{'EXPLANATION'};
+	push @categories,
+		grep { $cat_used{$_} == 0 && $_ ne 'EXPLANATION' }
+		sort keys %{$other_info->{'histogram'}};
+
+	foreach my $cat (@categories) {
+		my $n = $other_info->{'histogram'}{$cat};
+		print fmt_row_percent($cat, $n, 100.0*$n / $base);
+	}
+
+	# footer
+	print fmt_footer_percent($base, $nresponses);
+
+	# extra information
+	print "Last 'other' response parsed: $other_info->{'last'} / $nresponses\n"
+		if ($other_info->{'last'} < $nresponses);
+	print "'Other' responses skipped: $other_info->{'skipped'} / $nother\n"
+		if ($other_info->{'skipped'});
+}
+
 # ......................................................................
 
 sub post_print_continents_stats {
@@ -2304,6 +2363,7 @@ GetOptions(
 	'reparse!' => \$reparse,
 	'restat!' => \$restat,
 	'reanalyse|reanalyze!' => \$reanalyse,
+	'ask|ask-categorized!' => \$ask_categorized,
 );
 pod2usage(1) if $help;
 
@@ -2344,6 +2404,8 @@ survey_parse_Survs_CSV(num).com - Parse data from "Git User's Survey 2009"
    --reparse                   reparse CSV file even if cache exists
    --restat                    regenerate statistics even if cache exists
    --reanalyse                 reanalyse 'other, please specify' answers
+   --ask-categorized           ask for a new rules also for categorized
+                               'other, please specify' answers
 =head1 DESCRIPTION
 
 B<survey_parse_Survs_CSV(num).com.perl> is used to parse data from
@@ -2428,6 +2490,9 @@ if ($resp_only) {
 	my $q = $survey_data{"Q$resp_only"};
 
 	print_question_stats($q, $nresponses, $sort);
+	print_other_stats($q, $other_repl{"Q$resp_only"}, $nresponses)
+		if ($q->{'other'});
+
 	if (ref($q->{'post'}) eq 'CODE') {
 		# \@responses are needed if post sub wants to re-analyze data
 		$q->{'post'}(\%survey_data, \@responses, $resp_only,
@@ -2450,6 +2515,8 @@ if ($resp_only) {
 
 		# question
 		print_question_stats($q, $nresponses);
+		print_other_stats($q, $other_repl{"Q$qno"}, $nresponses)
+			if ($q->{'other'});
 	}
 }
 
