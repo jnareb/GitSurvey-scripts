@@ -2153,6 +2153,10 @@ sub print_question_stats {
 	} else {
 		print fmt_footer_percent($q->{'base'}, $nresponses);
 	}
+}
+
+sub print_extra_info {
+	my $q = shift;
 
 	if ($q->{'description'}) {
 		printf "\n";
@@ -2505,6 +2509,7 @@ if ($resp_only) {
 	print_question_stats($q, $nresponses, $sort);
 	print_other_stats($q, $other_repl{"Q$resp_only"}, $nresponses)
 		if ($q->{'other'});
+	print_extra_info($q);
 
 	if (ref($q->{'post'}) eq 'CODE') {
 		# \@responses are needed if post sub wants to re-analyze data
@@ -2530,6 +2535,7 @@ if ($resp_only) {
 		print_question_stats($q, $nresponses);
 		print_other_stats($q, $other_repl{"Q$qno"}, $nresponses)
 			if ($q->{'other'});
+		print_extra_info($q);
 	}
 }
 
