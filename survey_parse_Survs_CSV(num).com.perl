@@ -182,7 +182,7 @@ sub parse_data {
 				};
 				# single choice with other
 				if ($qinfo->{'other'} && $columns[$col+1] ne '') {
-					$resp->[$qno]{'contents'} = $#{$qinfo->{'codes'}};
+					#$resp->[$qno]{'contents'} = @{$qinfo->{'codes'}};
 					$resp->[$qno]{'other'} = $columns[$col+1];
 				}
 				$resp->[$qno]{'skipped'} = 1
@@ -2306,6 +2306,8 @@ sub post_print_date_divided_announce_hist {
 		add_to_hist(\%heard_hist, $heard);
 	}
 
+
+	print "\n";
 	print "# 1:date 2:'12:00:00'(noon)\n";
 	for (my $i = 0; $i < @{$q->{'codes'}}; $i++) {
 		print "#  ".($i+3).":$q->{'codes'}[$i]\n";
