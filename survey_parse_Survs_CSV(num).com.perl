@@ -22,6 +22,7 @@ use Text::Wrap;
 use Getopt::Long;
 use Pod::Usage;
 use List::Util qw(max maxstr min minstr sum);
+use List::MoreUtils qw(uniq);
 use Term::ReadLine;
 #use Term::ReadKey;
 #use Term::ANSIColor;
@@ -739,7 +740,7 @@ sub update_other_hist {
 	# - if category is new, it should be added to histogram
 
 	my $has_explanation = 0;
-	foreach my $category (@categories) {
+	foreach my $category (uniq @categories) {
 		if (grep { $_ eq $category } @answers) {
 			$has_explanation = 1;
 		} else {
@@ -765,21 +766,6 @@ sub add_to_hist {
 			$hist->{$val} = 1;
 		}
 	}
-}
-
-# remove duplicated entries in sorted array
-sub uniq (@) {
-	my @in  = @_;
-	my @out = ();
-
-	$out[0] = $in[0] if @in > 0;
-	for (my $i = 1; $i <= $#in; ++$i) {
-		if ($in[$i] ne $in[$i-1]) {
-			push @out, $in[$i];
-		}
-	}
-
-	return @out;
 }
 
 # ----------------------------------------------------------------------
