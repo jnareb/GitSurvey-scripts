@@ -25,7 +25,8 @@ use List::Util qw(max maxstr min minstr sum);
 use Term::ReadLine;
 #use Term::ReadKey;
 #use Term::ANSIColor;
-#use File::Basename;
+use File::Spec;
+use File::Basename;
 
 use Date::Manip;
 use Locale::Country;
@@ -2416,6 +2417,16 @@ CSV export (numeric) from "Git User's Survey 2009" from Survs.com
 =cut
 
 Date_Init("TZ=$resp_tz", "ConvTZ=$resp_tz", "Language=English");
+
+if ((my $basedir = dirname($0))) {
+	foreach my $nameref ( \$filename, \$respfile, \$statfile, \$otherfile ) {
+		next if (-f $$nameref);
+		next if File::Spec->file_name_is_absolute($$nameref);
+		$$nameref = File::Spec->canonpath("$basedir/".basename($$nameref));
+
+		#print "$$nameref\n";
+	}
+}
 
 if (-f $respfile && $reparse) {
 	unlink($respfile);
