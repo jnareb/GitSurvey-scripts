@@ -2357,7 +2357,7 @@ GetOptions(
 	'restat!' => \$restat,
 	'reanalyse|reanalyze!' => \$reanalyse,
 	'ask|ask-categorized!' => \$ask_categorized,
-);
+) or pod2usage(1);
 pod2usage(1) if $help;
 
 # number of questions is hardcoded here to allow faster fail
