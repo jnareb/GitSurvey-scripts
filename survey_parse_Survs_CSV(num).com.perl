@@ -55,41 +55,38 @@ my $otherfile = 'GitSurvey2009.other_repl.yml'; # user-editable
 my ($reparse, $restat);
 
 my $resp_tz = "CET"; # timezone of responses date and time
+my @special_columns = ( # are not about answers to questions
+	"Respondent Number",
+	"Date",
+	"Time",
+	"Channel"
+);
+my $nskip = scalar @special_columns;
 
+# ----------------------------------------------------------------------
 
-# Parse data (given hardcoded file)
-sub parse_data {
-	my ($survinfo, $responses) = @_;
+# Extract column headers from CSV file, from first row
+sub extract_headers_csv {
+	my ($csv, $fh) = @_;
 
-	my $csv = Text::CSV->new({
-		binary => 1, eol => $/,
-		escape_char => "\\",
-		allow_loose_escapes => 1
-	}) or die "Could not create Text::CSV object: ".
-	          Text::CSV->error_diag();
+	seek $fh, 0, 0; # 0=SEEK_START; # rewind to start, just in case
 
-	my $line;
-	my @columns = ();
+	my $row = $csv->getline($fh);
+	unless (defined $row) {
+		my $err = $csv->error_input();
 
-	open my $fh, '<', $filename
-		or die "Could not open file '$filename': $!";
-	if ($filename =~ m/\.gz$/) {
-		binmode $fh, ':gzip'
-			or die "Could not set up gzip decompression on '$filename': $!";
+		print STDERR "$.: getline() failed on argument: $err\n" .
+		             $csv->error_diag();
+		return;
 	}
 
-	# ........................................
-	# CSV column headers
-	$line = <$fh>;
-	chomp $line;
-	unless ($csv->parse($line)) {
-		print STDERR "$.: parse() on CSV header failed\n";
-		print STDERR $csv->error_input()."\n";
-		$csv->error_diag(); # void context: print to STDERR
-	}
-	@columns = $csv->fields();
-	splice(@columns,0,4); # first 4 columns are informational
-	my $nfields = @columns;
+	return wantarray ? @$row : $row;
+}
+
+# Calculate staring column for each question
+sub process_headers {
+	my ($survinfo, $headers);
+	my @columns = @$headers[$nskip..$#$headers];
 
 	# calculate question to starting column number
 	my $qno = 0;
@@ -102,13 +99,149 @@ sub parse_data {
 			$survinfo->{"Q$qno"}{'col'} = $i;
 		}
 	}
+}
+
+# Handle special columns (number of response, date and time, channel)
+sub responder_info {
+	my ($survinfo, $row) = @_;
+
+	my ($respno, $respdate, $resptime, $channel) = @$row;
+
+	my ($year, $day, $month) = split("/", $respdate);
+	$respdate = "$year-$month-$day"; # ISO format
+
+	my %info = (
+		'respondent number' => $respno,
+		'date' => $respdate,
+		'time' => $resptime,
+		'parsed_date' => ParseDate("$respdate $resptime $resp_tz"),
+		'channel' => $channel
+	);
+	return \%info;
+}
+
+# Extract info about given question from response
+sub question_info {
+	my ($qinfo, $row) = @_;
+	my $col = $qinfo->{'col'}; # column or starting column
+
+	# this if-elsif-else chain should be probably converted
+	# to dispatch table (might be not possible) or a switch statement
+	my %resp;
+	if ($qinfo->{'freeform'} ||
+	    !exists $qinfo->{'codes'}) {
+		# free-form essay, single value or
+		# free-form text, single value
+		my $contents = $row->[$col];
+		%resp = (
+			'type' => 'essay',
+			'contents' => $contents
+		);
+		$resp{'skipped'} = 1
+			if ($contents eq '');
+
+		# free-form text, single value can be tabularized
+		# if it is not skipped
+		if (!exists $qinfo->{'codes'}       &&
+		    ref($qinfo->{'hist'}) eq 'CODE' &&
+		    $contents ne '') {
+			%resp = (
+				%resp,
+				'original' => $contents,
+				'contents' => $qinfo->{'hist'}->($contents)
+			);
+		}
+
+	} elsif (!$qinfo->{'multi'} && !$qinfo->{'columns'}) {
+		# single choice
+		my $contents = $row->[$col];
+		my $other;
+		%resp = (
+			'type' => 'single-choice',
+			'contents' => $contents
+		);
+		if ($qinfo->{'other'}) {
+			$other = $row->[$col+1];
+			$resp{'other'} = $other
+				unless ($other eq '');
+		}
+		$resp{'skipped'} = 1
+			if ($contents eq '' &&
+			    (!$qinfo->{'other'} || $other eq ''));
+
+	} elsif ($qinfo->{'multi'} && !$qinfo->{'columns'}) {
+		# multiple choice
+		my $skipped = 1;
+		%resp = (
+			'type' => 'multiple-choice',
+			'contents' => []
+		);
+		for (my $j = 0; $j < @{$qinfo->{'codes'}}; $j++) {
+			my $value = $row->[$col+$j];
+			next unless (defined $value && $value ne '');
+			if ($qinfo->{'other'} && $j == $#{$qinfo->{'codes'}}) {
+				$value = "".($j+1); # number stringified, not value !!!
+			}
+			push @{$resp{'contents'}}, $value;
+			$skipped = 0;
+		}
+		# multiple choice with other
+		if ($qinfo->{'other'}) {
+			my $other = $row->[$col+$#{$qinfo->{'codes'}}];
+			$resp{'other'} = $other if ($other ne '');
+		}
+		$resp{'skipped'} = 1 if ($skipped);
+
+	} elsif ($qinfo->{'columns'}) {
+		# matrix
+		my $skipped = 1;
+		%resp = (
+			'type' => 'matrix',
+			'contents' => []
+		);
+		for (my $j = 0; $j < @{$qinfo->{'codes'}}; $j++) {
+			my $value = $row->[$col+$j];
+			next unless (defined $value && $value ne '');
+			push @{$resp{'contents'}}, $value;
+			$skipped = 0;
+		}
+		$resp{'skipped'} = 1 if ($skipped);
+
+	} # end if-elsif ...
+
+
+	return \%resp;
+}
+
+# ......................................................................
+
+# Parse data (given hardcoded file)
+sub parse_data {
+	my ($survinfo, $responses) = @_;
+
+	my $csv = Text::CSV->new({
+		binary => 1, eol => $/,
+		escape_char => "\\",
+		allow_loose_escapes => 1
+	}) or die "Could not create Text::CSV object: ".
+	          Text::CSV->error_diag();
+
+	open my $fh, '<', $filename
+		or die "Could not open file '$filename': $!";
+	if ($filename =~ m/\.gz$/) {
+		binmode $fh, ':gzip'
+			or die "Could not set up gzip decompression on '$filename': $!";
+	}
+
+	# ........................................
+	# CSV column headers
+	my @headers = extract_headers_csv($csv, $fh);
+	process_headers($survinfo, \@headers);
+	my $nfields = scalar(@headers);
 
 
 	# ........................................
 	# CSV lines
-	#my $responses = [];
-	my ($respno, $respdate, $resptime, $channel);
-
  RESPONSE:
 	while (1) {
 		my $row = $csv->getline($fh);
@@ -122,116 +255,21 @@ sub parse_data {
 			last RESPONSE; # error would usually be not recoverable
 		}
 
-		unless ($nfields == (scalar(@$row) - 4)) {
+		unless ($nfields == scalar(@$row)) {
 			print STDERR "$.: number of columns doesn't match: ".
 			             "$nfields != ".(scalar @$row)."\n";
 			last RESPONSE; # error would usually be not recoverable
 		}
 
 		my $resp = [];
-		my @columns = @$row;
-
-		# handle special columns, normalize date
-		($respno, $respdate, $resptime, $channel) =
-			splice(@columns,0,4);
-		my ($year, $day, $month) = split("/", $respdate);
-		$respdate = "$year-$month-$day"; # ISO format
-
-		$resp->[0] = {
-			'respondent number' => $respno,
-			'date' => $respdate,
-			'time' => $resptime,
-			'parsed_date' => ParseDate("$respdate $resptime $resp_tz"),
-			'channel' => $channel
-		};
+		$resp->[0] = responder_info($survinfo, $row);
 
 	QUESTION:
 		for (my $qno = 1; $qno <= $survinfo->{'nquestions'}; $qno++) {
 			my $qinfo = $survinfo->{"Q$qno"};
 			next unless (defined $qinfo);
-			my $col = $qinfo->{'col'};
 
-			# this if-elsif-else chain should be probably converted
-			# to dispatch table or a switch statement
-			if ($qinfo->{'freeform'}) {
-				# free-form essay, single value
-				$resp->[$qno] = {
-					'type' => 'essay',
-					'contents' => $columns[$col]
-				};
-				$resp->[$qno]{'skipped'} = 1
-					if ($columns[$col] eq '');
-
-			} elsif (!exists $qinfo->{'codes'}) {
-				# free-form, single value
-				$resp->[$qno] = {
-					'type' => 'oneline',
-					'contents' => $columns[$col]
-				};
-				if (ref($qinfo->{'hist'}) eq 'CODE' &&
-				    $columns[$col] ne '') {
-					$resp->[$qno]{'original'} = $columns[$col];
-					$resp->[$qno]{'contents'} = $qinfo->{'hist'}->($columns[$col]);
-				}
-				$resp->[$qno]{'skipped'} = 1
-					if ($columns[$col] eq '');
-
-			} elsif (!$qinfo->{'multi'} && !$qinfo->{'columns'}) {
-				# single choice
-				$resp->[$qno] = {
-					'type' => 'single-choice',
-					'contents' => $columns[$col]
-				};
-				# single choice with other
-				if ($qinfo->{'other'} && $columns[$col+1] ne '') {
-					#$resp->[$qno]{'contents'} = @{$qinfo->{'codes'}};
-					$resp->[$qno]{'other'} = $columns[$col+1];
-				}
-				$resp->[$qno]{'skipped'} = 1
-					if ($columns[$col] eq '' &&
-					    (!$qinfo->{'other'} || $columns[$col+1] eq ''));
-
-			} elsif ($qinfo->{'multi'} && !$qinfo->{'columns'}) {
-				# multiple choice
-				my $skipped = 1;
-				$resp->[$qno] = {
-					'type' => 'multiple-choice',
-					'contents' => []
-				};
-				for (my $j = 0; $j < @{$qinfo->{'codes'}}; $j++) {
-					my $value = $columns[$col+$j];
-					next unless (defined $value && $value ne '');
-					if ($qinfo->{'other'} && $j == $#{$qinfo->{'codes'}}) {
-						$value = "".($j+1); # number stringified, not value !!!
-					}
-					push @{$resp->[$qno]{'contents'}}, $value;
-					$skipped = 0;
-				}
-				# multiple choice with other
-				if ($qinfo->{'other'} &&
-				    $columns[$col+$#{$qinfo->{'codes'}}] ne '') {
-					$resp->[$qno]{'other'} =
-						$columns[$col+$#{$qinfo->{'codes'}}];
-				}
-				$resp->[$qno]{'skipped'} = 1 if ($skipped);
-
-			} elsif ($qinfo->{'columns'}) {
-				# matrix
-				my $skipped = 1;
-				$resp->[$qno] = {
-					'type' => 'matrix',
-					'contents' => []
-				};
-				for (my $j = 0; $j < @{$qinfo->{'codes'}}; $j++) {
-					my $value = $columns[$col+$j];
-					next unless (defined $value && $value ne '');
-					push @{$resp->[$qno]{'contents'}}, $value;
-					$skipped = 0;
-				}
-				$resp->[$qno]{'skipped'} = 1 if ($skipped);
-
-			} # end if-elsif ...
-
+			$resp->[$qno] = question_info($qinfo, $row);
 		} # end for QUESTION
 
 		#$responses->[$respno] = $resp
@@ -2399,6 +2437,7 @@ survey_parse_Survs_CSV(num).com - Parse data from "Git User's Survey 2009"
    --reanalyse                 reanalyse 'other, please specify' answers
    --ask-categorized           ask for a new rules also for categorized
                                'other, please specify' answers
+
 =head1 DESCRIPTION
 
 B<survey_parse_Survs_CSV(num).com.perl> is used to parse data from
