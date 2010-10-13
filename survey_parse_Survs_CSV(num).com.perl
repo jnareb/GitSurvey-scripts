@@ -2,7 +2,7 @@
 
 # survey_parse - parse results of survey from Survs.com in CSV format
 #
-# (C) 2008-2009, Jakub Narebski
+# (C) 2008-2010, Jakub Narebski
 #
 # This program is licensed under the GPLv2 or later
 #
