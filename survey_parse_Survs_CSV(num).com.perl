@@ -1832,6 +1832,7 @@ GetOptions(
 	'file=s'     => \$filename,
 	'respfile=s' => \$respfile,
 	'statfile=s' => \$statfile,
+	'otherfile=s' => \$otherfile,
 	'reparse!' => \$reparse,
 	'restat!' => \$restat,
 	'reanalyse|reanalyze!' => \$reanalyse,
@@ -1881,6 +1882,8 @@ survey_parse_Survs_CSV(num).com - Parse data from "Git User's Survey 2009"
    --file=<CSV file>           input file, in CSV format
    --respfile=<filename>       file to save parsed responses
    --statfile=<filename>       file to save generated statistics
+   --otherfile=<filename>      human-readable file to save analysis of
+                               'other, please specify' answers
 
    --reparse                   reparse CSV file even if cache exists
    --restat                    regenerate statistics even if cache exists
