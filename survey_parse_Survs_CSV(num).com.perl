@@ -86,8 +86,8 @@ sub extract_headers_csv {
 
 # Calculate staring column for each question
 sub process_headers {
-	my ($survinfo, $headers);
-	my @columns = @$headers[$nskip..$#$headers];
+	my ($survinfo, $headers) = @_;
+	my @columns = @{$headers}[$nskip..$#$headers];
 
 	# calculate question to starting column number
 	my $qno = 0;
@@ -124,7 +124,7 @@ sub responder_info {
 # Extract info about given question from response
 sub question_info {
 	my ($qinfo, $row) = @_;
-	my $col = $qinfo->{'col'}; # column or starting column
+	my $col = $qinfo->{'col'} + $nskip; # column or starting column
 
 	# this if-elsif-else chain should be probably converted
 	# to dispatch table (might be not possible) or a switch statement
@@ -135,7 +135,7 @@ sub question_info {
 		# free-form text, single value
 		my $contents = $row->[$col];
 		%resp = (
-			'type' => 'essay',
+			'type' => $qinfo->{'freeform'} ? 'essay' : 'oneline',
 			'contents' => $contents
 		);
 		$resp{'skipped'} = 1
@@ -210,7 +210,6 @@ sub question_info {
 
 	} # end if-elsif ...
 
-
 	return \%resp;
 }
 
@@ -239,7 +238,6 @@ sub parse_data {
 	my @headers = extract_headers_csv($csv, $fh);
 	process_headers($survinfo, \@headers);
 	my $nfields = scalar(@headers);
-
 
 	# ........................................
 	# CSV lines
@@ -1315,13 +1313,8 @@ sub question_type_description {
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # DATA
 my @survey_data = ();
-@survey_data = read_survinfo($survinfo_file);
-add_coderefs(\@survey_data);
-
 my %survey_data = @survey_data;
-delete_sections(\%survey_data);
-
-my @sections = make_sections(\@survey_data);
+my @sections = ();
 
 sub read_survinfo {
 	my $survinfo_file = shift;
@@ -1845,6 +1838,14 @@ GetOptions(
 	'ask|ask-categorized!' => \$ask_categorized,
 ) or pod2usage(1);
 pod2usage(1) if $help;
+
+@survey_data = read_survinfo($survinfo_file);
+add_coderefs(\@survey_data);
+
+%survey_data = @survey_data;
+delete_sections(\%survey_data);
+
+@sections = make_sections(\@survey_data);
 
 # number of questions is hardcoded here to allow faster fail
 unless (!defined $resp_only ||
