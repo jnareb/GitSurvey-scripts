@@ -1877,7 +1877,7 @@ survey_parse_Survs_CSV(num).com - Parse data from "Git User's Survey 2009"
                                (requires --only=<number>)
 
    --survinfo=<YAML file>      file with data about survey structure
-   --filename=<CSV file>       input file, in CSV format
+   --file=<CSV file>           input file, in CSV format
    --respfile=<filename>       file to save parsed responses
    --statfile=<filename>       file to save generated statistics
 
