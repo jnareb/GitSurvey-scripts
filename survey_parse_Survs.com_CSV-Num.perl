@@ -575,7 +575,7 @@ sub make_other_hist {
 	my ($survey_data, $responses, $other_repl, $qno) = @_;
 
 	if (!$qno || !$other_repl->{"Q$qno"}) {
-		print Dumper($other_repl);
+		#print Dumper($other_repl);
 
 	} else {
 		#print Dumper($other_repl->{"Q$qno"});
