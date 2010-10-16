@@ -1336,7 +1336,12 @@ sub read_survinfo {
 
 	-f $survinfo_file
 		or die "File with questions definitions '$survinfo_file' does not exist: $!";
+
+	local $| = 1; # autoflush
+	print STDERR "retrieving survey structure from '$survinfo_file'... ";
 	my $survinfo = LoadFile($survinfo_file);
+	print STDERR "(done)\n";
+
 	return @$survinfo;
 }
 
