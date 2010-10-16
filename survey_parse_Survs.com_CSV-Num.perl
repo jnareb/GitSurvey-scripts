@@ -64,6 +64,28 @@ my @special_columns = ( # are not about answers to questions
 );
 my $nskip = scalar @special_columns;
 
+# ask for categorizing even those response that match some rule
+my $ask_categorized = 0;
+
+my @country_names = all_country_names();
+
+# 'text' or 'wiki' (actually anything or 'wiki')
+my $format = 'text'; # default output format
+# wiki table style
+my $tablestyle = '';
+my %rowstyle =
+	('th'  => 'font-weight: bold; background-color: #ffffcc;',
+	 'row' => undef,
+	 'footer' => 'font-weight: bold; font-style: italic; background-color: #ccffff;'
+	);
+# default (minimum) width of column with answer
+my $min_width = 30;
+my $width = $min_width;
+
+my @survey_data = ();
+my %survey_data = @survey_data;
+my @sections = ();
+
 # ----------------------------------------------------------------------
 
 # Extract column headers from CSV file, from first row
@@ -496,9 +518,6 @@ sub union_hash {
 # ----------------------------------------------------------------------
 # Analysis of 'other, please specify' responses
 
-# ask for categorizing even those response that match some rule
-my $ask_categorized = 0;
-
 # Initialize / prepare data structure for storing information
 # about 'other, please specify' answers and their categorization
 sub init_other {
@@ -821,7 +840,6 @@ sub add_to_hist {
 # ----------------------------------------------------------------------
 # Normalize input data
 
-my @country_names = all_country_names();
 sub normalize_country {
 	my $country = shift;
 
@@ -1052,20 +1070,6 @@ sub time_duration_frac {
 # ----------------------------------------------------------------------
 # Format output
 
-# 'text' or 'wiki' (actually anything or 'wiki')
-my $format = 'text'; # default output format
-
-# MoinMoin wiki table style
-my $tablestyle = '';
-my %rowstyle =
-	('th'  => 'font-weight: bold; background-color: #ffffcc;',
-	 'row' => undef,
-	 'footer' => 'font-weight: bold; font-style: italic; background-color: #ccffff;'
-	);
-
-my $min_width = 30; # default (minimum) width of column with answer
-
-
 sub fmt_section_header {
 	my $title = shift;
 
@@ -1102,7 +1106,6 @@ sub fmt_todo {
 	return $result;
 }
 
-my $width = $min_width;
 sub fmt_th_percent {
 	my $title = shift || "Answer";
 
@@ -1326,9 +1329,6 @@ sub question_type_description {
 # ======================================================================
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # DATA
-my @survey_data = ();
-my %survey_data = @survey_data;
-my @sections = ();
 
 # Read information about survey structure from $survinfo_file
 sub read_survinfo {
@@ -1838,6 +1838,7 @@ sub post_print_date_divided_announce_hist {
 # ======================================================================
 # MAIN
 
+# program options
 my $help = 0;
 my ($resp_only, $sort, $hist, $reanalyse);
 
