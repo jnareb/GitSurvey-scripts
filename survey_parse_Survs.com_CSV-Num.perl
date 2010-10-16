@@ -1857,11 +1857,11 @@ unless (!defined $resp_only ||
 
 =head1 NAME
 
-survey_parse_Survs_CSV(num).com - Parse data from "Git User's Survey 2009"
+survey_parse_Survs.com_CSV-Num.com - Parse data from "Git User's Survey 2009"
 
 =head1 SYNOPSIS
 
-./survey_parse_Survs_CSV(num).com.perl [options]
+./survey_parse_Survs.com_CSV-Num.perl [options]
 
  Options:
    --help                      brief help message
