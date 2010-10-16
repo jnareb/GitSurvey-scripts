@@ -1392,7 +1392,7 @@ sub add_coderefs {
 
 		my $type = $value->{'type'};
 		if (exists $surv_coderef{$type}) {
-			$value = {
+			$survinfo->[$i+1] = {
 				%$value,
 				%{$surv_coderef{$type}}
 			};
