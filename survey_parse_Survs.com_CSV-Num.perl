@@ -10,7 +10,7 @@
 # in CSV format (Surveys > {survey} > Analyze > Export) from Survs.com,
 # using 'Numeric' (shorter) format for responses
 #
-# It is intendend to parse results of "Git User's Survey 2009"
+# It is intendend to parse results of "Git User's Survey 20xx"
 
 use strict;
 use warnings;
@@ -1826,7 +1826,6 @@ sub post_print_date_divided_announce_hist {
 		print "\n";
 	}
 
-	#      2009-09-16 12:00:00
 	print "# total             ";
 	foreach my $heard (@{$q->{'codes'}}, 'unknown') {
 		if (defined $heard_hist{$heard}) {
@@ -1886,7 +1885,7 @@ unless (!defined $resp_only ||
 
 =head1 NAME
 
-survey_parse_Survs.com_CSV-Num.com - Parse data from "Git User's Survey 2009"
+survey_parse_Survs.com_CSV-Num.com - Parse data from "Git User's Survey"
 
 =head1 SYNOPSIS
 
@@ -1923,7 +1922,7 @@ survey_parse_Survs.com_CSV-Num.com - Parse data from "Git User's Survey 2009"
 =head1 DESCRIPTION
 
 B<survey_parse_Survs_CSV(num).com.perl> is used to parse data from
-CSV export (numeric) from "Git User's Survey 2009" from Survs.com
+CSV export (numeric) from "Git User's Survey 20xx" from Survs.com
 
 =cut
 
