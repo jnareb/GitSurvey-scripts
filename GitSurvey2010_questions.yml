@@ -13,15 +13,16 @@
 - title: '02. How old are you (in years)?'
   colname: Age
   type: age
-  histogram:
-    ' < 18': 0
-    18-21: 0
-    22-25: 0
-    26-30: 0
-    31-40: 0
-    41-50: 0
-    51-75: 0
-    '76+  ': 0
+  bins:
+    - ' < 18'
+    - '18-21'
+    - '22-25'
+    - '26-30'
+    - '31-40'
+    - '41-50'
+    - '51-75'
+    - '76+  '
+    - NaN
 - S2
 - section_title: Getting started with Git
 - Q3
