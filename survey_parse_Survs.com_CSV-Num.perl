@@ -23,6 +23,7 @@ use Getopt::Long;
 use Pod::Usage;
 use List::Util qw(max maxstr min minstr sum);
 use List::MoreUtils qw(uniq);
+use Text::LevenshteinXS qw(distance);
 use Term::ReadLine;
 #use Term::ReadKey;
 #use Term::ANSIColor;
@@ -847,16 +848,21 @@ sub normalize_country {
 	$country =~ s/^\s+//;
 	$country =~ s/\s+$//;
 
+	my $original = $country;
+
 	# strip prefix
 	$country =~ s/^The //i;
 
 	# strip extra info
 	$country =~ s/, Europe\b//i;
+	$country =~ s/ \(Central Europe\)//;
 	$country =~ s/, but .*$//i;
 	$country =~ s/, UK\b//i;
 	$country =~ s/, the\b//i;
 	$country =~ s/ \. shanghai\b//i;
 	$country =~ s/^Kharkiv, //i;
+	$country =~ s/^Flanders, //i;
+	$country =~ s/^Tokyo, //i;
 	$country =~ s/^Victoria, //i;
 	$country =~ s/ \(Holland\)//i;
 	$country =~ s/ R\.O\.C\.//i;
@@ -864,16 +870,26 @@ sub normalize_country {
 	$country =~ s/[!?]+$//;
 	$country =~ s/\bMotherfucking\b //i;
 	$country =~ s/, bitch\.//;
+	$country =~ s/ \(fuck yea\)//;
+	$country =~ s/^China[, ]PRC?$/China/i;
+	$country =~ s/^P\.R\.China$/China/i;
+	$country =~ s/^Hong Kong.*/Hong Kong/i;
+	$country =~ s/^.* - Brazil$/Brazil/i;
 
 	# correct (or normalize) spelling
+	$country =~ s/\brep\.(?:\b|$)/Republic/i;
 	$country =~ s/\b(?:Amerrica|Ameircia)\b/America/i;
 	$country =~ s/\bBrasil\b/Brazil/i;
 	$country =~ s/\bBrazul\b/Brazil/i;
 	$country =~ s/\bChezh Republic\b/Czech Republic/i;
 	$country =~ s/\bCzechia\b/Czech Republic/i;
+	$country =~ s/^Czech$/Czech Republic/i;
 	$country =~ s/\bChinese\b/China/i;
+	$country =~ s/\bChinease\b/China/i;
 	$country =~ s/\bEnglang\b/England/i;
+	$country =~ s/\bEngkand\b/England/i;
 	$country =~ s/\bFinnland\b/Finland/i;
+	$country =~ s/\bFrench\b/France/i;
 	$country =~ s/\bGerman[u]?\b/Germany/i;
 	$country =~ s/\bGernany\b/Germany/i;
 	$country =~ s/\bKyrgyzstab\b/Kyrgyzstan/i;
@@ -883,6 +899,7 @@ sub normalize_country {
 	$country =~ s/\bMolodva\b/Moldova/i;
 	$country =~ s/\bSapin\b/Spain/i;
 	$country =~ s/^Serbia$/Serbia and Montenegro/i; # outdated info
+	$country =~ s/^Montenegro$/Serbia and Montenegro/i; # outdated info (?)
 	$country =~ s/\b(?:Sitzerland|Swtzerland)\b/Switzerland/i;
 	$country =~ s/\bSwedeb\b/Sweden/i;
 	$country =~ s/\bUnited Kindom\b/United Kingdom/i;
@@ -892,8 +909,14 @@ sub normalize_country {
 	$country =~ s/\bUnited? States?\b/United States/i;
 	# many names of United States of America
 	$country =~ s/^U\.S(?:|\.|\.A|\.A\.)$/USA/;
+	$country =~ s/^U\. S\. A\.$/USA/;
 	$country =~ s/^US of A$/USA/;
 	$country =~ s/^USofA$/USA/;
+	$country =~ s/^US&A$/USA/;
+	$country =~ s/^YS$/USA/;
+	# many names of United Kingdom
+	$country =~ s/^Britain$/United Kingdom/i;
+	$country =~ s/^British$/United Kingdom/i;
 
 	# local name to English
 	$country =~ s/\bDeutschland\b/Germany/i;
@@ -902,9 +925,15 @@ sub normalize_country {
 	$country =~ s/^PRC$/China/i; # People's Republic of China
 	$country =~ s/^U[Kk]$/United Kingdom/;
 	$country =~ s/\bUK\b/United Kingdom/i;
-	$country =~ s/ \(Rep. of\)/, Republic of/;
+	$country =~ s/ \(Rep\. of\)/, Republic of/;
 	$country =~ s/\b(?:Unites|Unitered)\b/United/i;
 	$country =~ s/\bStatus\b/States/i;
+	$country =~ s/\bState2\b/States/i;
+	$country =~ s/^Russian$/Russian Federation/i;
+	$country =~ s/^America$/USA/i;
+
+	# fix accidental fuzzy matches
+	$country =~ s/^Mike$/unknown/i;
 
 	# province, state or city to country
 	$country =~ s/^.*(?:England|Scotland|Wales).*$/United Kingdom/i;
@@ -914,7 +943,17 @@ sub normalize_country {
 	$country =~ s/\bAdelaide\b/Australia/i;
 	$country =~ s/\bAmsterdam\b/Netherlands/i;
 	$country =~ s/\bBasque country\b/Spain/i;
+	$country =~ s/\bBerlin\b/Germany/i;
 	$country =~ s/\bCatalonia\b/Spain/i;
+	$country =~ s/^Catalunya \/ Spain$/Spain/i;
+	$country =~ s/\bOttawa\b/Canada/i;
+	$country =~ s/\bReunion Island\b/France/i;
+
+	# choose only one country if there are more than one provided
+	$country =~ s/ <-> .*$//;
+	#$country =~ s/ and .*$//; # false positives in country names
+	$country =~ s!/.*$!!;
+	$country =~ s!, .*$!!;
 
 	# convert to code and back to country, normalizing country name
 	# (or going from code to country)
@@ -922,7 +961,21 @@ sub normalize_country {
 	$country = code2country($code)    || $country;
 
 	unless (scalar grep { $_ eq $country } @country_names) {
-		$country .= '?';
+		# 2/3 of Schwartzian transform
+		my @countries_sorted =
+			sort { $a->[1] <=> $b->[1] }
+			map  { [$_, distance($_, $country)] }
+			@country_names;
+
+		if ($countries_sorted[0][1] <= 2) {
+			$country = $countries_sorted[0][0];
+		} else {
+			#$country .= " ($countries_sorted[0][0],$countries_sorted[0][1])";
+			$country .= '?';
+			if ($original ne $country) {
+				$country .= " [$original]";
+			}
+		}
 	}
 
 	return ucfirst($country);
