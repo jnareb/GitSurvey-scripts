@@ -85,7 +85,7 @@ sub extract_headers_csv {
 }
 
 # Calculate staring column for each question
-sub process_headers {
+sub process_headers_csv {
 	my ($survinfo, $headers) = @_;
 	my @columns = @{$headers}[$nskip..$#$headers];
 
@@ -103,7 +103,7 @@ sub process_headers {
 }
 
 # Handle special columns (number of response, date and time, channel)
-sub responder_info {
+sub responder_info_from_response {
 	my ($survinfo, $row) = @_;
 
 	my ($respno, $respdate, $resptime, $channel) = @$row;
@@ -122,7 +122,7 @@ sub responder_info {
 }
 
 # Extract info about given question from response
-sub question_info {
+sub question_results_from_response {
 	my ($qinfo, $row) = @_;
 	my $col = $qinfo->{'col'} + $nskip; # column or starting column
 
@@ -215,7 +215,7 @@ sub question_info {
 
 # ......................................................................
 
-# Parse data (given hardcoded file)
+# Parse data (given $filename CSV file)
 sub parse_data {
 	my ($survinfo, $responses) = @_;
 
@@ -236,7 +236,7 @@ sub parse_data {
 	# ........................................
 	# CSV column headers
 	my @headers = extract_headers_csv($csv, $fh);
-	process_headers($survinfo, \@headers);
+	process_headers_csv($survinfo, \@headers);
 	my $nfields = scalar(@headers);
 
 	# ........................................
@@ -261,14 +261,14 @@ sub parse_data {
 		}
 
 		my $resp = [];
-		$resp->[0] = responder_info($survinfo, $row);
+		$resp->[0] = responder_info_from_response($survinfo, $row);
 
 	QUESTION:
 		for (my $qno = 1; $qno <= $survinfo->{'nquestions'}; $qno++) {
 			my $qinfo = $survinfo->{"Q$qno"};
 			next unless (defined $qinfo);
 
-			$resp->[$qno] = question_info($qinfo, $row);
+			$resp->[$qno] = question_results_from_response($qinfo, $row);
 		} # end for QUESTION
 
 		#$responses->[$respno] = $resp
@@ -280,6 +280,7 @@ sub parse_data {
 	return $responses;
 }
 
+# Parse CSV file, or retrieve serialized parsed data from file
 sub parse_or_retrieve_data {
 	my $survey_data = shift;
 	my $responses = [];
@@ -416,6 +417,7 @@ sub make_hist {
 
 }
 
+# Generate histograms of number of skipped questions
 sub make_nskipped_stat {
 	my ($survey_data, $responses, $stat) = @_;
 
@@ -429,6 +431,7 @@ sub make_nskipped_stat {
 	}
 }
 
+# Generate histograms of answers, or retrieve it serialized from file
 sub make_or_retrieve_hist {
 	my ($survey_data, $responses) = @_;
 	local $| = 1; # autoflush
@@ -453,6 +456,7 @@ sub make_or_retrieve_hist {
 }
 
 # extract histogram part of survey data (survey info)
+# to store it in $statfile
 sub extract_hist {
 	my $src = shift;
 	my $dst = {};
@@ -471,6 +475,8 @@ sub extract_hist {
 	return $dst;
 }
 
+# overlay second hash over first, deeply (recursively)
+# for putting retrieved histogram info in survey data structure
 sub union_hash {
 	my ($base, $overlay) = @_;
 
@@ -493,6 +499,8 @@ sub union_hash {
 # ask for categorizing even those response that match some rule
 my $ask_categorized = 0;
 
+# Initialize / prepare data structure for storing information
+# about 'other, please specify' answers and their categorization
 sub init_other {
 	my ($survey_data) = @_;
 	my $nquestions = $survey_data->{'nquestions'};
@@ -517,6 +525,8 @@ sub init_other {
 	return wantarray ? %other_repl : \%other_repl;
 }
 
+# Initialize structure for analyzing 'other, please specify' answers,
+# or retrieve it, serialized, from $otherfile
 sub init_or_retrieve_other {
 	my ($survey_data) = @_;
 	my %other_repl;
@@ -540,6 +550,7 @@ sub init_or_retrieve_other {
 	return wantarray ? %other_repl : \%other_repl;
 }
 
+# Analyze (create categories) 'other, please specify' answers, interactively
 sub make_other_hist {
 	my ($survey_data, $responses, $other_repl, $qno) = @_;
 
@@ -756,6 +767,8 @@ sub ask_rules {
 	return;
 }
 
+# Update histogram of responses with categorization of
+# 'other, please specify' answers
 sub update_other_hist {
 	my ($orepl, $qinfo, $response, @categories) = @_;
 	return unless @categories;
@@ -1283,6 +1296,7 @@ sub fmt_footer_matrix {
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . 
 
+# return description of a type of given question
 sub question_type_description {
 	my $q = shift;
 
@@ -1316,6 +1330,7 @@ my @survey_data = ();
 my %survey_data = @survey_data;
 my @sections = ();
 
+# Read information about survey structure from $survinfo_file
 sub read_survinfo {
 	my $survinfo_file = shift;
 
@@ -1325,6 +1340,7 @@ sub read_survinfo {
 	return @$survinfo;
 }
 
+# Extract information about sections from survey info structure
 sub make_sections {
 	my $survinfo = shift;
 	my @sections = ();
@@ -1342,6 +1358,7 @@ sub make_sections {
 	return @sections;
 }
 
+# Delete (extracted) information about sections from survey info structure
 sub delete_sections {
 	my $survhash = shift;
 
@@ -1351,6 +1368,8 @@ sub delete_sections {
 	}
 }
 
+# Add code references to survey structure infor retrieved from file
+# (storing data references in data serialization file is not good idea)
 sub add_coderefs {
 	my $survinfo = shift;
 	my %surv_coderef = (
@@ -1384,6 +1403,7 @@ sub add_coderefs {
 # ======================================================================
 # ----------------------------------------------------------------------
 
+# format time delta, in days hours minutes seconds format
 sub fmt_reltime {
 	my $seconds = shift;
 
@@ -1645,6 +1665,9 @@ sub print_extra_info {
 
 sub print_other_stats {
 	my ($question_info, $other_info, $nresponses, $sort) = @_;
+
+	# return early if there iare no 'other' responses parsed
+	return unless exists $other_info->{'last'};
 
 	# find width of widest element, starting with $width from the
 	# histogram of answers
