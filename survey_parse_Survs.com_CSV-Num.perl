@@ -48,11 +48,11 @@ binmode STDOUT, ':utf8';
 
 # ======================================================================
 # ----------------------------------------------------------------------
-my $survinfo_file = 'GitSurvey2009_questions.yml';
-my $filename = 'Survey results Sep 16, 09.csv';
-my $respfile = 'GitSurvey2009.responses.storable';
-my $statfile = 'GitSurvey2009.stats.storable';
-my $otherfile = 'GitSurvey2009.other_repl.yml'; # user-editable
+my $survinfo_file = 'GitSurvey2010_questions.yml';
+my $filename = 'Survey results Oct 16, 10.csv';
+my $respfile = 'GitSurvey2010.responses.storable';
+my $statfile = 'GitSurvey2010.stats.storable';
+my $otherfile = 'GitSurvey2010.other_repl.yml'; # user-editable
 
 my ($reparse, $restat);
 
