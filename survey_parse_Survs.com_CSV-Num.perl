@@ -847,6 +847,8 @@ sub normalize_country {
 	# strip leading and trailing whitespace
 	$country =~ s/^\s+//;
 	$country =~ s/\s+$//;
+	# strip quotes
+	$country =~ s/^'(.*)'$/$1/;
 
 	my $original = $country;
 
@@ -872,9 +874,10 @@ sub normalize_country {
 	$country =~ s/, bitch\.//;
 	$country =~ s/ \(fuck yea\)//;
 	$country =~ s/^China[, ]PRC?$/China/i;
-	$country =~ s/^P\.R\.China$/China/i;
+	$country =~ s/^(?:P\.R\.|PRC? )China$/China/i;
 	$country =~ s/^Hong Kong.*/Hong Kong/i;
 	$country =~ s/^.* - Brazil$/Brazil/i;
+	$country =~ s/^just south of //i;
 
 	# correct (or normalize) spelling
 	$country =~ s/\brep\.(?:\b|$)/Republic/i;
@@ -890,6 +893,7 @@ sub normalize_country {
 	$country =~ s/\bEngkand\b/England/i;
 	$country =~ s/\bFinnland\b/Finland/i;
 	$country =~ s/\bFrench\b/France/i;
+	$country =~ s/\bFederal Republic of Germany\b/Germany/i;
 	$country =~ s/\bGerman[u]?\b/Germany/i;
 	$country =~ s/\bGernany\b/Germany/i;
 	$country =~ s/\bKyrgyzstab\b/Kyrgyzstan/i;
@@ -900,13 +904,13 @@ sub normalize_country {
 	$country =~ s/\bSapin\b/Spain/i;
 	$country =~ s/^Serbia$/Serbia and Montenegro/i; # outdated info
 	$country =~ s/^Montenegro$/Serbia and Montenegro/i; # outdated info (?)
-	$country =~ s/\b(?:Sitzerland|Swtzerland)\b/Switzerland/i;
+	$country =~ s/\b(?:Swiss|Sitzerland|Swtzerland)\b/Switzerland/i;
 	$country =~ s/\bSwedeb\b/Sweden/i;
 	$country =~ s/\bUnited Kindom\b/United Kingdom/i;
 	$country =~ s/\bViet Nam\b/Vietnam/i;
 	$country =~ s/\bZealandd\b/Zealand/i;
 	$country =~ s/\bUSUnited States\b/United States/i;
-	$country =~ s/\bUnited? States?\b/United States/i;
+	$country =~ s/\bUni?ted? States?\b/United States/i;
 	# many names of United States of America
 	$country =~ s/^U\.S(?:|\.|\.A|\.A\.)$/USA/;
 	$country =~ s/^U\. S\. A\.$/USA/;
@@ -943,6 +947,7 @@ sub normalize_country {
 	$country =~ s/\bAdelaide\b/Australia/i;
 	$country =~ s/\bAmsterdam\b/Netherlands/i;
 	$country =~ s/\bBasque country\b/Spain/i;
+	$country =~ s/\bBeijing\b/China/i;
 	$country =~ s/\bBerlin\b/Germany/i;
 	$country =~ s/\bCatalonia\b/Spain/i;
 	$country =~ s/^Catalunya \/ Spain$/Spain/i;
