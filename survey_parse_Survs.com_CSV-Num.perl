@@ -2090,6 +2090,7 @@ if ($resp_only) {
 
 } else {
 
+	print STDERR "printing results... \n";
  QUESTION:
 	for (my $qno = 1; $qno <= $nquestions; $qno++) {
 		my $q = $survey_data{"Q$qno"};
@@ -2108,6 +2109,7 @@ if ($resp_only) {
 			if ($q->{'other'});
 		print_extra_info($q);
 	}
+	print STDERR "done printing\n";
 }
 
 #print Data::Dumper->Dump(
