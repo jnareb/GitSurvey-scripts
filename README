@@ -15,12 +15,19 @@ scripts; the rest can be found on relevant pages on Git Wiki.
   http://www.survey.net.nz/
 
 * survey_parse_Survs.com.perl was used to analyze results of
-  "Git User's Survey 2008", and generate data used to create
-  https://git.wiki.kernel.org/index.php/GitSurvey2008
+  "Git User's Survey 2008", and generate some of data used to
+  edit https://git.wiki.kernel.org/index.php/GitSurvey2008
+  (script from git://git.pkqs.net/gitsurvey08.git was also used)
+
+  "Git User's Survey 2008" was hosted on http://survs.com/
 
 * survey_parse_Survs.com_CSV-Num.perl was used to analyze results
   from 2009 and 2010 survey.  It is cleaner rewrite of earlier
-  survey_parse_Survs.com.perl script.
+  survey_parse_Survs.com.perl script.  Results can be seen on
+  https://git.wiki.kernel.org/index.php/GitSurvey2009
+  https://git.wiki.kernel.org/index.php/GitSurvey2010
+
+  Both of those surveys were hosted on http://survs.com
 
 
 Those scripts were used to generate table with results for each
