@@ -1208,10 +1208,10 @@ sub fmt_th_matrix {
 		my $style = defined($rowstyle{'th'}) ?
 		            " style=\"$rowstyle{'th'}\"" : '';
 
-		$th = map { "! colspan=\"2\" | $_ \n" } @fmtcol;
+		$th .= join('', map { "! colspan=\"2\" | $_ \n" } @fmtcol);
 		$th .= "! Avg. / Count \n" if ($show_avg);
 		return "{|$tablestyle\n" .
-		       sprintf("|-$style\n$th",
+		       sprintf("|-$style\n! %s\n$th",
 		               $title);
 	}
 
@@ -1251,7 +1251,7 @@ sub fmt_row_matrix {
 	if ($format eq 'wiki') {
 		my $style = defined($rowstyle{'row'}) ?
 		            " style=\"$rowstyle{'row'}\"" : '';
-		$result = sprintf("|-%s| %-${width}s", $style, $name);
+		$result = sprintf("|-%s\n| %-${width}s", $style, $name);
 	} else {
 		$result = sprintf("  %-${width}s", $name);
 	}
@@ -1285,10 +1285,6 @@ sub fmt_row_matrix {
 		# or alternatively
 		#$result .= ' / ' . sprintf("%-4d", sum(@$hist))
 		#	if ($format eq 'wiki');
-	}
-
-	if ($format eq 'wiki') {
-		$result .= ' ||';
 	}
 
 	return $result . "\n";
@@ -1345,7 +1341,7 @@ sub fmt_footer_matrix {
 		if ($format eq 'wiki') {
 			my $style = defined($rowstyle{'footer'}) ?
 			            " style=\"$rowstyle{'footer'}\"" : '';
-			$result .= sprintf("|-%s| %-${width}s \n|colspan=\"%d\" | %5d / %-5d \n",
+			$result .= sprintf("|-%s\n| %-${width}s \n|colspan=\"%d\" | %5d / %-5d \n",
 			                   $style, "Base", $ncol*2 + 2*!!$show_avg,
 			                   $base, $responses);
 		} else {
