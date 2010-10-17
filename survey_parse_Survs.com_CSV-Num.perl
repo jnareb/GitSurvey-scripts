@@ -1527,30 +1527,6 @@ sub print_resp_hist {
 	print "\n";
 }
 
-# Print info about survey (from Survs.com + some extra)
-sub print_survey_info {
-	my $responses = shift;
-	my $nresponses = scalar @$responses;
-
-	my $date_fmt = '%Y-%m-%d %H:%M %z';
-	my $first_resp = UnixDate($responses->[ 0][0]{'parsed_date'}, $date_fmt);
-	my $last_resp  = UnixDate($responses->[-1][0]{'parsed_date'}, $date_fmt);
-	print <<"EOF"."\n";
-Completion Rate:    100%
-Total respondents:  3868 ($nresponses)
-Survey created:     Jun 25, 2009 03:15 PM (for testing)
-Opened on:          Jul 15, 2009 02:34 AM
-Announced on:       2009-07-15 02:39:43 (git wiki: GitSurvey2009)
-                    2009-07-15 02:54:00 (git wiki: MainPage)
-                    Wed, 15 Jul 2009 09:22:32 +0200 (git\@vger.kernel.org)
-First response:     Jul 15, 2009 ($first_resp)
-Last response:      Sep 16, 2009 ($last_resp)
-Closed on:          Sep 16, 2009 11:45 PM (GitSurvey2009 channel, auto)
-Open during:        72 days
-Average time:       49 minutes
-EOF
-}
-
 # Print some base statistics
 sub print_base_stats {
 	my ($survey_data, $responses) = @_;
@@ -2030,7 +2006,9 @@ if (defined $hist) {
 
 unless ($resp_only) {
 	print "There were $nresponses individual responses\n\n";
-	print_survey_info(\@responses);
+	if ($survey_data{'survey_stats'}) {
+		print $survey_data{'survey_stats'}."\n";
+	}
 
 	print_base_stats(\%survey_data, \@responses);
 }

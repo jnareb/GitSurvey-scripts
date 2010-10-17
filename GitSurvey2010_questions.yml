@@ -3,6 +3,14 @@
 ---
 - survey_title
 - "Git User's Survey 2010"
+- survey_stats
+- |
+  Total respondents:	 8841
+  Viewed:               28001
+  First response:	Sep 01, 2010
+  Last response:	Oct 16, 2010
+  Open during:	70 days
+  Average time:	35 minutes
 - S1
 - section_title: About you
 - Q1
