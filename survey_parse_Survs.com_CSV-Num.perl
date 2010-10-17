@@ -73,7 +73,7 @@ my @country_names = all_country_names();
 # 'text' or 'wiki' (actually anything or 'wiki')
 my $format = 'text'; # default output format
 # wiki table style
-my $tablestyle = '';
+my $tablestyle = ' border="1" cellpadding="2" cellspacing="0"';
 my %rowstyle =
 	('th'  => 'font-weight: bold; background-color: #ffffcc;',
 	 'row' => undef,
@@ -1142,6 +1142,9 @@ sub fmt_question_title {
 	my $title = shift;
 
 	if ($format eq 'wiki') {
+		if ($title =~ m/^([^\n]*)\n(.*)$/s) {
+			return "\n=== $1 ===\n'''$2'''\n\n";
+		}
 		return "\n=== $title ===\n";
 	}
 	if ($title =~ m/\n/) {
@@ -1168,13 +1171,11 @@ sub fmt_th_percent {
 	my $title = shift || "Answer";
 
 	if ($format eq 'wiki') {
-		#my $style = join(' ', grep { defined $_ && $_ ne '' }
-		#                 $tablestyle, $rowstyle{'th'});
 		my $style = defined($rowstyle{'th'}) ?
-		            "<rowstyle=\"$rowstyle{'th'}\">" : '';
+		            " style=\"$rowstyle{'th'}\"" : '';
 
-		return "## table begin\n" .
-		       sprintf("||$style %-${width}s || %5s || %-5s ||\n",
+		return "{|$tablestyle\n|-$style\n" .
+		       sprintf("! %-${width}s !! %5s !! %-5s \n",
 		               $title, "Count", "Perc.");
 	}
 
@@ -1188,7 +1189,7 @@ sub fmt_matrix_maxlen {
 	return max(
 		map(length, @$columns),
 		$format eq 'wiki' ?
-			length(' 9999 ||  99.9%') - length('<-2> '):
+			0 :
 			length('9999 (99%)')
 	);
 }
@@ -1199,21 +1200,22 @@ sub fmt_th_matrix {
 
 	my $maxlen = fmt_matrix_maxlen($columns);
 	my @fmtcol = map { sprintf("%-${maxlen}s", $_) } @$columns;
+	my $th;
 
 	if ($format eq 'wiki') {
 		#my $style = join(' ', grep { defined $_ && $_ ne '' }
 		#                 $tablestyle, $rowstyle{'th'});
 		my $style = defined($rowstyle{'th'}) ?
-		            "<rowstyle=\"$rowstyle{'th'}\">" : '';
+		            " style=\"$rowstyle{'th'}\"" : '';
 
-		my $th = join('||', map { "<-2> $_ " } @fmtcol);
-		$th .= "|| || Avg. / Count " if ($show_avg);
-		return "## table begin\n" .
-		       sprintf("||$style %-${width}s ||$th||\n",
+		$th = map { "! colspan=\"2\" | $_ \n" } @fmtcol;
+		$th .= "! Avg. / Count \n" if ($show_avg);
+		return "{|$tablestyle\n" .
+		       sprintf("|-$style\n$th",
 		               $title);
 	}
 
-	my $th = join('|', map { " $_ " } @fmtcol);
+	$th = join('|', map { " $_ " } @fmtcol);
 	$th .= "|| Avg." if ($show_avg);
 	$th = sprintf("%-${width}s |$th\n", $title);
 	return "  $th".
@@ -1225,11 +1227,11 @@ sub fmt_row_percent {
 
 	if ($format eq 'wiki') {
 		# CamelCase -> !CamelCase to avoid accidental wiki links
-		$name =~ s/\b([A-Z][a-z]+[A-Z][a-z]+)\b/!$1/g;
-
+		#$name =~ s/\b([A-Z][a-z]+[A-Z][a-z]+)\b/!$1/g;
 		my $style = defined($rowstyle{'row'}) ?
-		            "<rowstyle=\"$rowstyle{'row'}\">" : '';
-		return sprintf("||%s %-${width}s || %5d || %4.1f%% ||\n",
+		            " style=\"$rowstyle{'row'}\"" : '';
+
+		return sprintf("|-%s\n| %-${width}s || %5d || %4.1f%% \n",
 		               $style, $name, $count, $perc);
 	}
 
@@ -1241,15 +1243,15 @@ sub fmt_row_matrix {
 	my ($name, $hist, $base, $columns, $score, $count) = @_;
 
 	# CamelCase -> !CamelCase to avoid accidental wiki links
-	$name =~ s/\b([A-Z][a-z]+[A-Z][a-z]+)\b/!$1/g
-		if ($format eq 'wiki');
+	#$name =~ s/\b([A-Z][a-z]+[A-Z][a-z]+)\b/!$1/g
+	#	if ($format eq 'wiki');
 
 	# format row name (answer)
 	my $result;
 	if ($format eq 'wiki') {
 		my $style = defined($rowstyle{'row'}) ?
-		            "<rowstyle=\"$rowstyle{'row'}\">" : '';
-		$result = sprintf("||%s %-${width}s", $style, $name);
+		            " style=\"$rowstyle{'row'}\"" : '';
+		$result = sprintf("|-%s| %-${width}s", $style, $name);
 	} else {
 		$result = sprintf("  %-${width}s", $name);
 	}
@@ -1257,8 +1259,8 @@ sub fmt_row_matrix {
 	my $maxlen = fmt_matrix_maxlen($columns);
 	my ($sep, $doublesep);
 	if ($format eq 'wiki') {
-		$sep = ' || ';
-		$doublesep = ' || || ';
+		$sep = "\n";
+		$doublesep = "\n| ";
 	} else {
 		$sep = ' | ';
 		$doublesep = ' || ';
@@ -1267,15 +1269,17 @@ sub fmt_row_matrix {
 		my $perc = 100.0*$entry / $base;
 		my $col;
 		if ($format eq 'wiki') {
-			$col = sprintf("%-5d || %4.1f%%", $entry, $perc);
+			$col = sprintf("| %-5d || %4.1f%% ", $entry, $perc);
 		} else {
 			$col = sprintf("%4d (%.0f%%)", $entry, $perc);
+			$col = sprintf("%-${maxlen}s", $col);
 		}
-		$col = sprintf("%-${maxlen}s", $col);
 		$result .= "$sep$col";
 	}
 	if ($score) {
 		$result .= $doublesep . sprintf("%3.1f", $score);
+		$result .= ' ('.scalar(@$hist).')'
+			if ($format eq 'wiki');
 		$result .= ' / ' . sprintf("%-4d", $count)
 			if (defined $count && $format eq 'wiki');
 		# or alternatively
@@ -1298,14 +1302,14 @@ sub fmt_footer_percent {
 	}
 
 	if ($format eq 'wiki') {
-		return "## table end\n\n" unless defined($base);
+		return "|}\n\n" unless defined($base);
 
 		my $style = defined($rowstyle{'footer'}) ?
-		            "<rowstyle=\"$rowstyle{'footer'}\">" : '';
+		            " style=\"$rowstyle{'footer'}\"" : '';
 
-		return sprintf("||%s %-${width}s ||<-2> %5d / %-5d ||\n",
+		return sprintf("|-%s\n| %-${width}s \n| colspan=\"2\" | %5d / %-5d \n",
 		               $style, "Base", $base, $responses) .
-		       "## table end\n\n";
+		       "|}\n\n";
 	}
 
 	return "  " . ('-' x ($width + 17)) . "\n" .
@@ -1320,8 +1324,8 @@ sub fmt_footer_matrix {
 	my $maxlen = fmt_matrix_maxlen($columns);
 	my ($sep, $doublesep);
 	if ($format eq 'wiki') {
-		$sep = ' || ';
-		$doublesep = ' || || ';
+		$sep = "\n";
+		$doublesep = "\n| ";
 	} else {
 		$sep = ' | ';
 		$doublesep = ' || ';
@@ -1340,8 +1344,8 @@ sub fmt_footer_matrix {
 	if ($base) {
 		if ($format eq 'wiki') {
 			my $style = defined($rowstyle{'footer'}) ?
-			            "<rowstyle=\"$rowstyle{'footer'}\">" : '';
-			$result .= sprintf("||%s %-${width}s ||<-%d> %5d / %-5d ||\n",
+			            " style=\"$rowstyle{'footer'}\"" : '';
+			$result .= sprintf("|-%s| %-${width}s \n|colspan=\"%d\" | %5d / %-5d \n",
 			                   $style, "Base", $ncol*2 + 2*!!$show_avg,
 			                   $base, $responses);
 		} else {
@@ -1350,7 +1354,7 @@ sub fmt_footer_matrix {
 		}
 	}
 	if ($format eq 'wiki') {
-		$result .= "## table end\n\n";
+		$result .= "|}\n\n";
 	}
 	return $result;
 }
@@ -1620,8 +1624,11 @@ sub print_base_stats {
 sub print_question_stats {
 	my ($q, $nresponses, $sort) = @_;
 
-	print fmt_question_title($q->{'title'});
-	print question_type_description($q)."\n";
+	print fmt_question_title($q->{'title'}).
+	      ($format eq 'wiki' ? "''" : "").
+	      question_type_description($q).
+	      ($format eq 'wiki' ? "''" : "").
+	      "\n";
 
 	# if there are no histogram
 	if (!exists $q->{'histogram'}) {
@@ -1707,22 +1714,22 @@ sub print_extra_info {
 
 	if ($q->{'description'}) {
 		printf "\n";
-		print "~-\n" if ($format eq 'wiki'); # start of smaller
+		#print "~-\n" if ($format eq 'wiki'); # start of smaller
 		if ($format eq 'wiki') {
-			print "'''Description:'''<<BR>>\n";
+			print "'''Description:'''<BR>\n";
 		} else {
 			print "Description:\n".
 			      "~~~~~~~~~~~~\n\n";
 		}
 		print $q->{'description'};
-		print "-~"   if ($format eq 'wiki'); # end of smaller
+		#print "-~"   if ($format eq 'wiki'); # end of smaller
 		printf "\n";
-		if ($format eq 'wiki') {
-			print "'''Analysis:'''<<BR>>\n";
-		} else {
-			print "Analysis:\n".
-			      "~~~~~~~~~\n\n";
-		}
+		#if ($format eq 'wiki') {
+		#	print "'''Analysis:'''<BR>\n";
+		#} else {
+		#	print "Analysis:\n".
+		#	      "~~~~~~~~~\n\n";
+		#}
 	}
 }
 
@@ -2041,7 +2048,7 @@ unless ($resp_only) {
 	if ($format ne 'wiki') {
 		print "  " . ('-' x ($width + 17)) . "\n";
 	} else {
-		print "## table end\n\n";
+		print "|}\n\n";
 	}
 }
 
