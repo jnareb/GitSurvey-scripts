@@ -1757,6 +1757,21 @@ sub print_other_stats {
 		if ($other_info->{'skipped'});
 }
 
+sub print_original_responses {
+	my ($survey_data, $responses, $qno) = @_;
+
+	foreach my $resp (@$responses) {
+		my $qresp = $resp->[$qno];
+		next unless defined $qresp;
+
+		print "-\n".
+		      (defined $qresp->{'original'} ?
+		               $qresp->{'original'} :
+		               $qresp->{'contents'}).
+		      "\n";
+	}
+}
+
 # ......................................................................
 
 sub post_print_continents_stats {
@@ -1881,7 +1896,7 @@ sub post_print_date_divided_announce_hist {
 
 # program options
 my $help = 0;
-my ($resp_only, $sort, $hist, $reanalyse);
+my ($resp_only, $sort, $hist, $reanalyse, $show_orig);
 
 GetOptions(
 	'help|?' => \$help,
@@ -1890,6 +1905,7 @@ GetOptions(
 	'text' => sub { $format = 'text' },
 	'min-width|width|w=i' => \$min_width,
 	'only|o=i' => \$resp_only,
+	'show-orig|show-original' => \$show_orig,
 	'resp-hist' => sub { $hist = 'resp' },
 	'date-hist' => sub { $hist = 'date' },
 	'sort!' => \$sort,
@@ -1940,6 +1956,8 @@ survey_parse_Survs.com_CSV-Num.com - Parse data from "Git User's Survey"
    --resp-hist                 print only histogram of responses
 
    --only=<question number>    display only results for given question
+   --show-original             show original responses, untabularized
+                               (works only with --only=<number>)
    --sort                      sort tables by number of responses
                                (requires --only=<number>)
 
@@ -2055,6 +2073,9 @@ if ($resp_only) {
 	print_other_stats($q, $other_repl{"Q$resp_only"}, $nresponses)
 		if ($q->{'other'});
 	print_extra_info($q);
+	if ($show_orig) {
+		print_original_responses(\%survey_data, \@responses, $resp_only);
+	}
 
 	if (ref($q->{'post'}) eq 'CODE') {
 		# \@responses are needed if post sub wants to re-analyze data
