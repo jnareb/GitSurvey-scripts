@@ -902,8 +902,8 @@ sub normalize_country {
 	$country =~ s/\bM.*xico\b/Mexico/i;
 	$country =~ s/\bMolodva\b/Moldova/i;
 	$country =~ s/\bSapin\b/Spain/i;
-	$country =~ s/^Serbia$/Serbia and Montenegro/i; # outdated info
-	$country =~ s/^Montenegro$/Serbia and Montenegro/i; # outdated info (?)
+	#$country =~ s/^Serbia$/Serbia and Montenegro/i; # outdated info
+	#$country =~ s/^Montenegro$/Serbia and Montenegro/i; # outdated info (?)
 	$country =~ s/\b(?:Swiss|Sitzerland|Swtzerland)\b/Switzerland/i;
 	$country =~ s/\bSwedeb\b/Sweden/i;
 	$country =~ s/\bUnited Kindom\b/United Kingdom/i;
