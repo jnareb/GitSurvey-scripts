@@ -73,7 +73,7 @@ my @country_names = all_country_names();
 # 'text' or 'wiki' (actually anything or 'wiki')
 my $format = 'text'; # default output format
 # wiki table style
-my $tablestyle = ' border="1" cellpadding="2" cellspacing="0"';
+my $tablestyle = ' border="1" cellpadding="3" cellspacing="0"';
 my %rowstyle =
 	('th'  => 'font-weight: bold; background-color: #ffffcc;',
 	 'row' => undef,
