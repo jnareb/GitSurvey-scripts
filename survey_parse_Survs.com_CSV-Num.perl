@@ -580,6 +580,8 @@ sub init_or_retrieve_other {
 sub make_other_hist {
 	my ($survey_data, $responses, $other_repl, $qno) = @_;
 
+	return unless -t STDOUT; # we need terminal for interactivity
+
 	if (!$qno || !$other_repl->{"Q$qno"}) {
 		#print Dumper($other_repl);
 
