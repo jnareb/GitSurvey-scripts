@@ -394,7 +394,7 @@
 - S4
 - section_title: What you think of Git
 - Q19
-- title: '20. Overall, how happy are you with Git?'
+- title: '19. Overall, how happy are you with Git?'
   codes:
     - unhappy
     - not so happy
