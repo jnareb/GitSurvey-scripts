@@ -1963,7 +1963,7 @@ survey_parse_Survs.com_CSV-Num.com - Parse data from "Git User's Survey"
    --help                      brief help message
 
    --format=wiki|text          set output format
-   --wiki                      set 'wiki' (MoinMoin) output format
+   --wiki                      set 'wiki' (Mediawiki) output format
    --text                      set 'text' output format
    -w,--min-width=<width>      minimum width of first column
    --no-graph                  do not generate graphical histogram
