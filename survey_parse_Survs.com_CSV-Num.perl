@@ -83,6 +83,12 @@ my %rowstyle =
 my $min_width = 30;
 my $width = $min_width;
 
+# vertical graphical histogram for 'wiki' format
+my $show_graph = 1;
+my $graph_color = '#ff0f0f';
+my $graph_width = 200;
+my $graph_units = 'px';
+
 my @survey_data = ();
 my %survey_data = @survey_data;
 my @sections = ();
@@ -1173,9 +1179,11 @@ sub fmt_th_percent {
 	if ($format eq 'wiki') {
 		my $style = defined($rowstyle{'th'}) ?
 		            " style=\"$rowstyle{'th'}\"" : '';
+		my $graph = !$show_graph ? '' :
+		            qq(\n! style="width: $graph_width$graph_units;" |);
 
 		return "{|$tablestyle\n|-$style\n" .
-		       sprintf("! %-${width}s !! %5s !! %-5s \n",
+		       sprintf("! %-${width}s !! %5s !! %-5s $graph\n",
 		               $title, "Count", "Perc.");
 	}
 
@@ -1223,15 +1231,18 @@ sub fmt_th_matrix {
 }
 
 sub fmt_row_percent {
-	my ($name, $count, $perc) = @_;
+	my ($name, $count, $perc, $base) = @_;
 
 	if ($format eq 'wiki') {
 		# CamelCase -> !CamelCase to avoid accidental wiki links
 		#$name =~ s/\b([A-Z][a-z]+[A-Z][a-z]+)\b/!$1/g;
 		my $style = defined($rowstyle{'row'}) ?
 		            " style=\"$rowstyle{'row'}\"" : '';
+		my $graph = !$show_graph ? '' :
+		            sprintf qq(\n| <div style="width: %3.0f%s; background-color: %s;">&nbsp;</div>),
+		                    1.0*$graph_width*$count/$base, $graph_units, $graph_color;
 
-		return sprintf("|-%s\n| %-${width}s || %5d || %4.1f%% \n",
+		return sprintf("|-%s\n| %-${width}s || %5d || %4.1f%% $graph\n",
 		               $style, $name, $count, $perc);
 	}
 
@@ -1302,8 +1313,9 @@ sub fmt_footer_percent {
 
 		my $style = defined($rowstyle{'footer'}) ?
 		            " style=\"$rowstyle{'footer'}\"" : '';
+		my $graph = !$show_graph ? '' : '||';
 
-		return sprintf("|-%s\n| %-${width}s \n| colspan=\"2\" | %5d / %-5d \n",
+		return sprintf("|-%s\n| %-${width}s \n| colspan=\"2\" | %5d / %-5d $graph\n",
 		               $style, "Base", $base, $responses) .
 		       "|}\n\n";
 	}
@@ -1668,7 +1680,7 @@ sub print_question_stats {
 			                     $q->{'columns'}, $score, $count);
 		} else {
 			print fmt_row_percent($row, $q->{'histogram'}{$row},
-			                      100.0*$q->{'histogram'}{$row} / $base);
+			                      100.0*$q->{'histogram'}{$row} / $base, $base);
 		}
 	}
 
@@ -1744,7 +1756,7 @@ sub print_other_stats {
 
 	foreach my $cat (@categories) {
 		my $n = $other_info->{'histogram'}{$cat};
-		print fmt_row_percent($cat, $n, 100.0*$n / $base);
+		print fmt_row_percent($cat, $n, 100.0*$n / $base, $base);
 	}
 
 	# footer
@@ -1800,7 +1812,7 @@ sub post_print_continents_stats {
 	my $base = $q->{'base'};
 	for my $continent (sort keys %continent_hist) {
 		my $data = $continent_hist{$continent};
-		print fmt_row_percent($continent, $data, 100.0*$data / $base);
+		print fmt_row_percent($continent, $data, 100.0*$data / $base, $base);
 	}
 }
 
@@ -1909,6 +1921,7 @@ GetOptions(
 	'resp-hist' => sub { $hist = 'resp' },
 	'date-hist' => sub { $hist = 'date' },
 	'sort!' => \$sort,
+	'graph!' => \$show_graph,
 	'survinfo=s' => \$survinfo_file,
 	'file=s'     => \$filename,
 	'respfile=s' => \$respfile,
@@ -1951,6 +1964,8 @@ survey_parse_Survs.com_CSV-Num.com - Parse data from "Git User's Survey"
    --wiki                      set 'wiki' (MoinMoin) output format
    --text                      set 'text' output format
    -w,--min-width=<width>      minimum width of first column
+   --no-graph                  do not generate graphical histogram
+                               (using HTML, only for 'wiki' format)
 
    --date-hist                 print only histogram of dates
    --resp-hist                 print only histogram of responses
@@ -2035,7 +2050,7 @@ unless ($resp_only) {
 		my $nskipped = $survey_data{'histogram'}{'skipped'}{$i};
 		print fmt_row_percent($survey_data{'nquestions'} - $i,
 		                      $nskipped,
-		                      100.0*$nskipped/$nresponses);
+		                      100.0*$nskipped/$nresponses, $nresponses);
 	}
 	if ($format ne 'wiki') {
 		print "  " . ('-' x ($width + 17)) . "\n";
