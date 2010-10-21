@@ -1923,6 +1923,7 @@ GetOptions(
 	'resp-hist' => sub { $hist = 'resp' },
 	'date-hist' => sub { $hist = 'date' },
 	'sort!' => \$sort,
+	'sorted' => sub { $sort = 1 },
 	'graph!' => \$show_graph,
 	'survinfo=s' => \$survinfo_file,
 	'file=s'     => \$filename,
