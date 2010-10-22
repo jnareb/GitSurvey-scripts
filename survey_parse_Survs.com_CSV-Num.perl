@@ -1524,15 +1524,58 @@ sub print_date_hist {
 # print histogram of number of responses per question,
 # in format suitable for datafile e.g for gnuplot
 sub print_resp_hist {
-	my $survey_data = shift;
+	my ($survey_data, $nresponses) = @_;
 
-	print "# 1:question_number 2:responses\n";
+	if ($format eq 'wiki') {
+		print fmt_th_percent('Question');
+	} else {
+		print "# 1:question_number 2:responses\n";
+	}
+
+	$width = max
+		map { $_->{'title'} =~ /\A(.*?)$/m; length($1) }
+		map { $survey_data{"Q$_"} }
+		1..$survey_data->{'nquestions'};
+	$width = max($width, $min_width);
+
+	my $nextsect = 0;
  QUESTION:
 	for (my $qno = 1; $qno <= $survey_data->{'nquestions'}; $qno++) {
+
+		# section header
+		if (exists $sections[$nextsect] &&
+		    $sections[$nextsect]{'start'} <= $qno) {
+			my $section_title = $sections[$nextsect]{'title'};
+			$section_title =~ s/\n.*$//; # only first line
+
+			if ($format eq 'wiki') {
+				print "|-\n";
+				print qq(| colspan="4" style="font-size: 80%; text-align: center" |).
+				      qq($section_title\n);
+			} else {
+				print "#$section_title\n";
+			}
+
+			$nextsect++;
+		}
+
+
 		my $q = $survey_data{"Q$qno"};
 		next unless (defined $q);
 
-		printf("%-2d %d\n", $qno, $q->{'base'});
+		if ($format eq 'wiki') {
+			my $question_title = $q->{'title'};
+			$question_title =~ s/\n.*$//; # only first line
+			print fmt_row_percent($question_title,
+			                      $q->{'base'}, 100.0*$q->{'base'}/$nresponses,
+			                      $nresponses);
+		} else {
+			printf("%-2d %d\n", $qno, $q->{'base'});
+		}
+	}
+
+	if ($format eq 'wiki') {
+		print "|}\n"; # close table
 	}
 	print "\n";
 }
@@ -2031,7 +2074,7 @@ if (defined $hist) {
 		print_date_hist(\%survey_data, \@responses);
 		exit 0;
 	} elsif ($hist eq 'resp') {
-		print_resp_hist(\%survey_data);
+		print_resp_hist(\%survey_data, $nresponses);
 		exit 0;
 	}
 }
