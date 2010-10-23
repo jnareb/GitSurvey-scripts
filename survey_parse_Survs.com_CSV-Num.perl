@@ -1539,6 +1539,7 @@ sub print_resp_hist {
 	$width = max($width, $min_width);
 
 	my $nextsect = 0;
+	my $c = $show_graph ? 4 : 3; # number of columns in table
  QUESTION:
 	for (my $qno = 1; $qno <= $survey_data->{'nquestions'}; $qno++) {
 
@@ -1550,7 +1551,7 @@ sub print_resp_hist {
 
 			if ($format eq 'wiki') {
 				print "|-\n";
-				print qq(| colspan="4" style="font-size: 80%; text-align: center" |).
+				print qq(| colspan="$c" style="font-size: 80%; text-align: center" |).
 				      qq($section_title\n);
 			} else {
 				print "#$section_title\n";
