@@ -1134,6 +1134,79 @@ sub time_duration_frac {
 }
 
 # ----------------------------------------------------------------------
+# Auxiliary functions for formatting output
+sub fmt_matrix_maxlen {
+	my $columns = shift;
+
+	return max(
+		map(length, @$columns),
+		$format eq 'wiki' ?
+			0 :
+			length('9999 (99%)')
+	);
+}
+
+sub matrix_colors {
+	my $columns = shift;
+	my $ncolors = scalar @$columns;
+	my (%colors, $skip_first);
+
+	if (is_NA($columns->[0])) {
+		$colors{$columns->[0]} = '#606060' ; # gray (lighter version is '#a6a6a6')
+		$skip_first = 1;
+		$ncolors--;
+	}
+
+	for (my $i = 0; $i < $ncolors; $i++) {
+		$colors{$columns->[$i + !!$skip_first]} =
+			get_color_from_gradient($i / ($ncolors-1));
+	}
+
+	return %colors;
+}
+
+sub is_NA {
+	my $answer = shift;
+
+	return ($answer eq "don't care" || $answer eq 'never used');
+}
+
+# based on C Source for the "standard" cold-to-hot colour ramp
+# from http://local.wasp.uwa.edu.au/~pbourke/texture_colour/colourramp/
+sub get_color_from_gradient {
+	my $fraction = shift;
+
+	$fraction = 0.0 if ($fraction < 0.0);
+	$fraction = 1.0 if ($fraction > 1.0);
+
+	my %rgb_color = ( R => 1.0, G => 1.0, B => 1.0 );
+	if ($fraction < 0.25) {
+		$rgb_color{R} = 0.0;
+		$rgb_color{G} = 4.0*$fraction;
+	} elsif ($fraction < 0.5) {
+		$rgb_color{R} = 0.0;
+		$rgb_color{B} = 1.0 - 4*($fraction - 0.25);
+	} elsif ($fraction < 0.75) {
+		$rgb_color{R} = 4.0*($fraction - 0.5);
+		$rgb_color{B} = 0.0;
+	} else { # $fraction <= 1.0
+		$rgb_color{G} = 1.0 - 4*($fraction - 0.75);
+		$rgb_color{B} = 0.0;
+	}
+
+	return rgb_to_hex(@rgb_color{qw(R G B)});
+}
+
+sub rgb_to_hex {
+	my @rgb = @_;
+	my $result = '#';
+	foreach my $c (@rgb) {
+		$result .= sprintf('%02x', $c*255);
+	}
+	return $result;
+}
+
+# ----------------------------------------------------------------------
 # Format output
 
 sub fmt_section_header {
@@ -1193,23 +1266,11 @@ sub fmt_th_percent {
 	               "  " . ('-' x ($width + 17)) . "\n";
 }
 
-sub fmt_matrix_maxlen {
-	my $columns = shift;
-
-	return max(
-		map(length, @$columns),
-		$format eq 'wiki' ?
-			0 :
-			length('9999 (99%)')
-	);
-}
-
 sub fmt_th_matrix {
 	my ($title, $columns, $show_avg) = @_;
 	$title ||= "Answer";
 
 	my $maxlen = fmt_matrix_maxlen($columns);
-	my @fmtcol = map { sprintf("%-${maxlen}s", $_) } @$columns;
 	my $th;
 
 	if ($format eq 'wiki') {
@@ -1217,13 +1278,23 @@ sub fmt_th_matrix {
 		#                 $tablestyle, $rowstyle{'th'});
 		my $style = defined($rowstyle{'th'}) ?
 		            " style=\"$rowstyle{'th'}\"" : '';
+		my %colors = $show_graph ? matrix_colors($columns) : ();
 
-		$th .= join('', map { "! colspan=\"2\" | $_ \n" } @fmtcol);
+		foreach my $col (@$columns) {
+			my $colstyle = '';
+			$colstyle = qq(style="background-color: $colors{$col};" )
+				if $show_graph;
+			$th .= qq(! colspan="2" $colstyle| $col \n);
+		}
 		$th .= "! Avg. / Count \n" if ($show_avg);
+		$th .= qq(! style="width: $graph_width$graph_units;" | &nbsp;\n)
+			if ($show_graph);
 		return "{|$tablestyle\n" .
 		       sprintf("|-$style\n! %s\n$th",
 		               $title);
 	}
+
+	my @fmtcol = map { sprintf("%-${maxlen}s", $_) } @$columns;
 
 	$th = join('|', map { " $_ " } @fmtcol);
 	$th .= "|| Avg." if ($show_avg);
@@ -1278,11 +1349,18 @@ sub fmt_row_matrix {
 		$sep = ' | ';
 		$doublesep = ' || ';
 	}
-	foreach my $entry (@$hist) {
+	my $graph  = $show_graph ? '' : undef;
+	my %colors = $show_graph ? matrix_colors($columns) : ();
+	for (my $i = 0; $i < @$hist; $i++) {
+		my $entry = $hist->[$i];
 		my $perc = 100.0*$entry / $base;
 		my $col;
 		if ($format eq 'wiki') {
 			$col = sprintf("| %-5d || %4.1f%% ", $entry, $perc);
+			if ($show_graph) {
+				$graph .= sprintf qq(\n<div style="width: %3d%s; background-color: %s; float: left;">&nbsp;</div>),
+				          1.0*$graph_width*$entry/$base, $graph_units, $colors{$columns->[$i]};
+			}
 		} else {
 			$col = sprintf("%4d (%.0f%%)", $entry, $perc);
 			$col = sprintf("%-${maxlen}s", $col);
@@ -1298,6 +1376,9 @@ sub fmt_row_matrix {
 		# or alternatively
 		#$result .= ' / ' . sprintf("%-4d", sum(@$hist))
 		#	if ($format eq 'wiki');
+	}
+	if ($format eq 'wiki' && $show_graph) {
+		$result .= "\n| $graph";
 	}
 
 	return $result . "\n";
@@ -1356,8 +1437,9 @@ sub fmt_footer_matrix {
 			my $style = defined($rowstyle{'footer'}) ?
 			            " style=\"$rowstyle{'footer'}\"" : '';
 			$result .= sprintf("|-%s\n| %-${width}s \n|colspan=\"%d\" | %5d / %-5d \n",
-			                   $style, "Base", $ncol*2 + 2*!!$show_avg,
+			                   $style, "Base", $ncol*2 + 1*!!$show_avg,
 			                   $base, $responses);
+			$result .= "| \n" if ($show_graph);
 		} else {
 			$result .= sprintf("  %-${width}s | %5d / %-5d\n", "Base",
 			                   $base, $responses);
