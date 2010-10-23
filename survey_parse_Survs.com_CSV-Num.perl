@@ -313,6 +313,7 @@ sub parse_data {
 sub parse_or_retrieve_data {
 	my $survey_data = shift;
 	my $responses = [];
+	my $what = 'responses';
 	local $| = 1; # autoflush
 
 	if (! -f $respfile) {
@@ -323,11 +324,11 @@ sub parse_or_retrieve_data {
 		parse_data($survey_data, $responses);
 		print STDERR "(done)\n";
 
-		print STDERR "storing in '$respfile'... ";
+		print STDERR "storing $what in '$respfile'... ";
 		store($responses, $respfile);
 		print STDERR "(done)\n";
 	} else {
-		print STDERR "retrieving from '$respfile'... ";
+		print STDERR "retrieving $what from '$respfile'... ";
 		$responses = retrieve($respfile);
 		print STDERR "(done)\n";
 	}
@@ -463,6 +464,7 @@ sub make_nskipped_stat {
 # Generate histograms of answers, or retrieve it serialized from file
 sub make_or_retrieve_hist {
 	my ($survey_data, $responses) = @_;
+	my $what = 'survey statistics';
 	local $| = 1; # autoflush
 
 	if (! -f $statfile) {
@@ -471,11 +473,11 @@ sub make_or_retrieve_hist {
 		make_hist($survey_data, $responses);
 		print STDERR "(done)\n";
 
-		print STDERR "storing in '$statfile'... ";
+		print STDERR "storing $what in '$statfile'... ";
 		store(extract_hist($survey_data), $statfile);
 		print STDERR "(done)\n";
 	} else {
-		print STDERR "retrieving from '$statfile'... ";
+		print STDERR "retrieving $what from '$statfile'... ";
 		my $survey_hist = retrieve($statfile);
 		union_hash($survey_data, $survey_hist);
 		print STDERR "(done)\n";
@@ -557,6 +559,7 @@ sub init_or_retrieve_other {
 	my ($survey_data) = @_;
 	my %other_repl;
 
+	my $what = "analysis of 'other' resp.";
 	local $| = 1; # autoflush
 
 	if (! -f $otherfile) {
@@ -564,11 +567,11 @@ sub init_or_retrieve_other {
 		%other_repl = init_other($survey_data);
 		print STDERR "(done)\n";
 
-		print STDERR "storing in '$otherfile'... ";
+		print STDERR "storing $what in '$otherfile'... ";
 		DumpFile($otherfile, \%other_repl);
 		print STDERR "(done)\n";
 	} else {
-		print STDERR "retrieving from '$otherfile'... ";
+		print STDERR "retrieving $what from '$otherfile'... ";
 		my @entries = LoadFile($otherfile);
 		%other_repl = %{$entries[0]};
 		print STDERR "(done)\n";
