@@ -733,7 +733,7 @@ sub categorize_response {
 		}
 	} # end RULE
 
-	return @categories;
+	return uniq sort @categories;
 }
 
 # interactive, returns a rule
