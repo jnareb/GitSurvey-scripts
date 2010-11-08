@@ -246,6 +246,7 @@
 - title: |-
     13. Which git hosting site(s) do you use for your project(s)?
         (Please check only hosting sites where you publish/push to)
+  type: multiplicity
   codes:
     - repo.or.cz
     - GitHub

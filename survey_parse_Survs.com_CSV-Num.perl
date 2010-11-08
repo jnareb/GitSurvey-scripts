@@ -1546,6 +1546,9 @@ sub add_coderefs {
 		'survey_announcement' => {
 			'post' => \&post_print_date_divided_announce_hist,
 		},
+		'multiplicity' => {
+			'post' => \&post_print_multiplicity,
+		},
 	);
 
 	for (my $i = 0; $i < @$survinfo; $i += 2) {
@@ -2030,6 +2033,29 @@ sub post_print_date_divided_announce_hist {
 		}
 	}
 	print "\n";
+}
+
+# print histogram how many choices were used in multiple-choice question
+sub post_print_multiplicity {
+	my ($survey_data, $responses, $qno, $nresponses, $sort) = @_;
+	my $q = $survey_data->{"Q$qno"};
+	my %mult_hist;
+
+ RESPONSE:
+	foreach my $r (@$responses) {
+		my $qresp = $r->[$qno];
+		#next RESPONSE if $qresp->{'skipped'};
+
+		add_to_hist(\%mult_hist, scalar @{$qresp->{'contents'}});
+	}
+
+	print fmt_th_percent('Multiplicity / '.scalar @{$q->{'codes'}});
+	my $base = $q->{'base'};
+	for my $mult (sort { $a <=> $b } keys %mult_hist) {
+		my $data = $mult_hist{$mult};
+		print fmt_row_percent($mult, $data, 100.0*$data / $base, $base);
+	}
+	print fmt_footer_percent($base, $nresponses);
 }
 
 # ======================================================================
