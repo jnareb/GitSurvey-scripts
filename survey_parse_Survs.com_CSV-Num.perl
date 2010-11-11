@@ -1212,6 +1212,15 @@ sub rgb_to_hex {
 # ----------------------------------------------------------------------
 # Format output
 
+sub fmt_comment_oneline {
+	my $contents = shift;
+
+	if ($format eq 'wiki') {
+		return "<!-- $contents -->\n";
+	}
+	return "# $contents\n";
+}
+
 sub fmt_section_header {
 	my $title = shift;
 
@@ -1918,6 +1927,120 @@ sub print_original_responses {
 	}
 }
 
+sub print_corr {
+	my ($qnos, $survey_data, $responses, $nresponses) = @_;
+	my @qs = @{$survey_data}{ map { "Q$_" } @$qnos };
+	my (%corr, $total);
+	my @hist = ({}, {});
+
+	unless ($qs[0]->{'codes'} && $qs[1]->{'codes'}) {
+		print STDERR "Cannot correlate those (yet)!\n";
+		exit 1;
+	}
+	if ($qs[0]->{'multiple'} || $qs[0]->{'multiple'}) {
+		print STDERR "Don't know how to correlate multiple-choice questionn";
+		exit 1;
+	}
+
+	local $| = 1; # autoflush
+	print STDERR "Calculating correlations... ";
+ RESPONSE:
+	foreach my $r (@$responses) {
+		my @qresp = @{$r}[ @$qnos ];
+		next if (grep { $_->{'skipped'} } @qresp);
+
+		$corr{$qresp[0]->{'contents'}}{$qresp[1]->{'contents'}}++;
+		add_to_hist($hist[$_], $qresp[$_]->{'contents'}) foreach (0..1);
+		$total++;
+	}
+	print STDERR "(done)\n";
+
+	print STDERR "Printing correlations... ";
+	my ($irow, $icol) = (0, 1);
+	print fmt_comment_oneline("# column (horizontal): $qs[$icol]->{'title'}");
+	print fmt_comment_oneline("# row    (vertical):   $qs[$irow]->{'title'}");
+	print "#" unless ($format eq 'wiki');
+
+	my $thstyle = defined($rowstyle{'th'}) ?
+	              " style=\"$rowstyle{'th'}\"" : '';
+	my $tdstyle = defined($rowstyle{'td'}) ?
+	              " style=\"$rowstyle{'td'}\"" : '';
+	my $ftstyle = defined($rowstyle{'footer'}) ?
+	              " style=\"$rowstyle{'footer'}\"" : '';
+
+	# start table
+	if ($format eq 'wiki') {
+		# start table
+		print "{|$tablestyle\n";
+		# column/row names
+		print "|-$thstyle\n";
+		print "! "; # empty
+	}
+	# table headers
+	foreach my $col (@{$qs[$icol]->{'codes'}}) {
+		if ($format eq 'wiki') {
+			(my $wikicol = $col) =~ s/ /<BR>/;
+			print "!! $wikicol ";
+		} else {
+			print " '$col'";
+		}
+	}
+	print "\n";
+
+	for (my $i = 0; $i < @{$qs[$irow]->{'codes'}}; $i++) {
+
+		# row description/name
+		my $row = $qs[$irow]->{'codes'}[$i];
+		if ($format eq 'wiki') {
+			print "|-$tdstyle\n| $row\n";
+		} else {
+			printf "%-${width}s ", $row;
+		}
+
+		for (my $j = 0; $j < @{$qs[$icol]->{'codes'}}; $j++) {
+			my $corr_perc = 100.0*($corr{$i+1}{$j+1} || 0)/$total;
+			my $corr_perc_fmt = sprintf '%4.1f%%', $corr_perc;
+
+			my $corr_ratio;
+			my $corr_ratio_fmt = "---";
+			if ($hist[$irow]->{$i+1} && $hist[$icol]->{$j+1}) {
+				# %7.1e
+				$corr_ratio = 1.0*($corr{$i+1}{$j+1} || 0)*$total
+				              / ($hist[$irow]->{$i+1}*$hist[$icol]->{$j+1});
+				if ($format eq 'wiki') {
+					$corr_ratio_fmt = sprintf '%.3f', $corr_ratio;
+				} else {
+					$corr_ratio_fmt = sprintf '%3.1f', $corr_ratio;
+				}
+			}
+
+			# print cell
+			if ($format eq 'wiki') {
+				print '| ';
+				print 'style="color: #808080" | '
+					unless ($corr{$i+1}{$j+1});
+				print " $corr_perc_fmt <br /><sup>($corr_ratio_fmt)</sup>\n";
+			} else {
+				print " $corr_perc_fmt ($corr_ratio_fmt)";
+			}
+		}
+		print "\n" unless ($format eq 'wiki');
+	}
+
+	# summary, close table
+	if ($format eq 'wiki') {
+		print "|-\n| colspan=\"".(scalar @{$qs[$icol]->{'codes'}} + 1)."\" |\n";
+
+		print "|-$ftstyle\n";
+		print '| Base || colspan="'.(scalar @{$qs[$icol]->{'codes'}}).'" | '.
+		      "$total / $nresponses\n";
+		print "|}\n\n";
+	} else {
+		print "# total=$total / $nresponses\n";
+	}
+	print STDERR "(done)\n";
+}
+
 # ......................................................................
 
 sub post_print_continents_stats {
@@ -2065,7 +2188,7 @@ sub post_print_multiplicity {
 
 # program options
 my $help = 0;
-my ($resp_only, $sort, $hist, $reanalyse, $show_orig);
+my ($resp_only, $corr, $sort, $hist, $reanalyse, $show_orig);
 
 GetOptions(
 	'help|?' => \$help,
@@ -2074,6 +2197,7 @@ GetOptions(
 	'text' => sub { $format = 'text' },
 	'min-width|width|w=i' => \$min_width,
 	'only|o=i' => \$resp_only,
+	'corr|correlation=s' => \$corr,
 	'show-orig|show-original' => \$show_orig,
 	'resp-hist' => sub { $hist = 'resp' },
 	'date-hist' => sub { $hist = 'date' },
@@ -2091,6 +2215,15 @@ GetOptions(
 	'ask|ask-categorized!' => \$ask_categorized,
 ) or pod2usage(1);
 pod2usage(1) if $help;
+
+my @corr;
+if ($corr) {
+	if ($corr !~ /^\d+,\d+$/) {
+		print STDERR "Malformed agument to --corr=$corr\n";
+		exit 1;
+	}
+	@corr = split(',', $corr);
+}
 
 @survey_data = read_survinfo($survinfo_file);
 add_coderefs(\@survey_data);
@@ -2133,6 +2266,8 @@ survey_parse_Survs.com_CSV-Num.com - Parse data from "Git User's Survey"
                                (works only with --only=<number>)
    --sort                      sort tables by number of responses
                                (requires --only=<number>)
+
+   --corr=<q1>,<q2>            display correlation between two questions
 
    --survinfo=<YAML file>      file with data about survey structure
    --file=<CSV file>           input file, in CSV format
@@ -2191,7 +2326,7 @@ if (defined $hist) {
 	}
 }
 
-unless ($resp_only) {
+unless ($resp_only || @corr) {
 	print "There were $nresponses individual responses\n\n";
 	if ($survey_data{'survey_stats'}) {
 		print $survey_data{'survey_stats'}."\n";
@@ -2201,7 +2336,7 @@ unless ($resp_only) {
 }
 
 
-unless ($resp_only) {
+unless ($resp_only || @corr) {
 	print fmt_th_percent('Answered questions');
  SKIPPED:
 	for (my $i = 0; $i <= $survey_data{'nquestions'}; $i++) {
@@ -2227,6 +2362,9 @@ if (defined $resp_only && $resp_only == 0) {
 if ($reanalyse) {
 	if ($resp_only) {
 		$other_repl{"Q$resp_only"}{'last'} = 0;
+	} elsif (@corr) {
+		$other_repl{$_}{'last'} = 0
+			foreach (@corr);
 	} else {
 		$other_repl{$_}{'last'} = 0
 			foreach (keys %other_repl);
@@ -2255,6 +2393,10 @@ if ($resp_only) {
 		$q->{'post'}(\%survey_data, \@responses, $resp_only,
 		             $nresponses, $sort);
 	}
+
+} elsif (@corr) {
+	print_corr(\@corr, \%survey_data, \@responses, $nresponses);
+	exit 0;
 
 } else {
 
