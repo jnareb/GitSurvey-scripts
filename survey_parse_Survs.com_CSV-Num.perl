@@ -16,6 +16,7 @@ use strict;
 use warnings;
 
 use Encode;
+use IO::Handle;
 use PerlIO::gzip;
 use Text::CSV;
 use Text::Wrap;
@@ -2039,6 +2040,51 @@ sub print_corr {
 		print "# total=$total / $nresponses\n";
 	}
 	print STDERR "(done)\n";
+
+	# printing data for gnuplot / spreadsheet is done only for 'text'
+	return if ($format eq 'wiki');
+
+	my $csv = Text::CSV->new()
+		or die "Could not create use Text::CSV object: ".Text::CSV->error_diag();
+	my $fh = IO::Handle->new_from_fd(fileno(STDOUT), "w")
+		or die "Could not create IO::Handle from STDOUT: $!";
+
+	$csv->print($fh, ["# column (horizontal): $qs[$icol]->{'title'}"]); $fh->print("\n");
+	$csv->print($fh, ["# row    (vertical):   $qs[$irow]->{'title'}"]); $fh->print("\n");
+	$fh->print("\n");
+	$csv->print($fh, ['', @{$qs[$icol]->{'codes'}}]); $fh->print("\n");
+
+	for (my $i = 0; $i < @{$qs[$irow]->{'codes'}}; $i++) {
+		my @data;
+
+		# row description/name
+		push @data, $qs[$irow]->{'codes'}[$i];
+		push @data, (map { $corr{$i+1}{$_} || 0 } (1..@{$qs[$icol]->{'codes'}}) );
+
+		$csv->print($fh, \@data);
+		$fh->print("\n");
+	}
+	$csv->print($fh, ["# total=$total / $nresponses"]); $fh->print("\n");
+
+	$fh->print("\n\n");
+
+	$csv->print($fh, [
+		$qs[$irow]->{'title'}, $qs[$icol]->{'title'}, "corr", "corr [%]", "X*Y"
+	]);
+	$fh->print("\n");
+	for (my $i = 0; $i < @{$qs[$irow]->{'codes'}}; $i++) {
+		for (my $j = 0; $j < @{$qs[$icol]->{'codes'}}; $j++) {
+			my @data = ($i+1, $j+1);
+			push @data, ($corr{$i+1}{$j+1} || 0);
+			push @data, ($corr{$i+1}{$j+1} || 0)/$total;
+			push @data, ($hist[$irow]->{$i+1} || 0)*($hist[$icol]->{$j+1} || 0);
+
+			$csv->print($fh, \@data);
+			$fh->print("\n");
+		}
+	}
+
+	$fh->flush();
 }
 
 # ......................................................................
