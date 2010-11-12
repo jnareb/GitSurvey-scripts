@@ -1551,7 +1551,10 @@ sub add_coderefs {
 		},
 		'country' => {
 			'hist' => \&normalize_country,
-			'post' => \&post_print_continents_stats,
+			'post' => sub {
+				post_print_continents_stats(@_);
+				post_print_countries_google_chart_html(@_);
+			},
 		},
 		'survey_announcement' => {
 			'post' => \&post_print_date_divided_announce_hist,
@@ -2088,6 +2091,84 @@ sub print_corr {
 }
 
 # ......................................................................
+
+sub post_print_countries_google_chart_html {
+	my ($survey_data, $responses, $qno, $nresponses) = @_;
+	my $q = $survey_data->{"Q$qno"};
+
+	my @countries = sort
+		grep { $q->{'histogram'}{$_} >= 10 }
+		grep { $_ !~ /\?/ }
+		keys %{$q->{'histogram'}};
+
+	print <<'HTML_HEAD';
+
+<html>
+  <head>
+    <!--Load the AJAX API-->
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript">
+
+      // Load the Visualization API and the geomap package.
+      google.load('visualization', '1', {'packages': ['geomap']});
+
+      // Set a callback to run when the Google Visualization API is loaded.
+      google.setOnLoadCallback(drawCountryMap);
+
+      // Callback that creates and populates a data table,
+      // passes in the data and draws it.
+      function drawCountryMap() {
+
+        // Create our data table.
+        var data = new google.visualization.DataTable();
+
+HTML_HEAD
+
+	my $ncountries = scalar @countries;
+	print <<"FRAGMENT";
+        data.addRows($ncountries);
+        data.addColumn('string', 'Country');
+        data.addColumn('number', 'Responders');
+        data.addColumn('string', 'Count [%]');
+
+FRAGMENT
+
+	for (my $i = 0; $i < @countries; $i++) {
+		my $country = $countries[$i];
+		my $count = $q->{'histogram'}{$country};
+		my $perc = sprintf '%5.2f%%', 100.0*$count/$q->{'base'};
+
+		print <<"FRAGMENT";
+        data.setValue($i, 0, "$country");
+        data.setValue($i, 1, $count);
+        data.setValue($i, 2, "$country: $perc");
+FRAGMENT
+	}
+
+print <<"HTML_FOOT";
+
+        var options = {};
+        options['dataMode'] = 'regions';
+        // "simple heatmap" colors
+        options['colors'] = [0x0000FF, 0x00FFFF, 0x00FF00, 0xFFFF00, 0xFF0000];
+
+        var container = document.getElementById('map_countries');
+        var geomap = new google.visualization.GeoMap(container);
+        geomap.draw(data, options);
+      }
+    </script>
+  </head>
+
+  <body>
+    <h1>$q->{'title'}</h1>
+    <!--Div that will hold the county map-->
+    <div id="map_countries"></div>
+    <i>$ncountries countries displayed</i><br />
+    Base: $q->{'base'} / $nresponses
+  </body>
+</html>
+HTML_FOOT
+}
 
 sub post_print_continents_stats {
 	my ($survey_data, $responses, $qno, $nresponses, $sort) = @_;
