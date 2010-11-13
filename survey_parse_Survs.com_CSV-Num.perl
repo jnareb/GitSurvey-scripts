@@ -2016,6 +2016,11 @@ sub print_corr {
 				              / ($hist[$irow]->{$i+1}*$hist[$icol]->{$j+1});
 				if ($format eq 'wiki') {
 					$corr_ratio_fmt = sprintf '%.3f', $corr_ratio;
+					if ($corr_ratio >= 2.0) {
+						$corr_ratio_fmt = "'''$corr_ratio_fmt'''";
+					} elsif ($corr_ratio <= 0.5) {
+						$corr_ratio_fmt = "''$corr_ratio_fmt''";
+					}
 				} else {
 					$corr_ratio_fmt = sprintf '%3.1f', $corr_ratio;
 				}
