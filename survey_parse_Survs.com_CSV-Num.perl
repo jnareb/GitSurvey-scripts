@@ -1936,6 +1936,7 @@ sub print_corr {
 	my @qs = @{$survey_data}{ map { "Q$_" } @$qnos };
 	my (%corr, $total);
 	my @hist = ({}, {});
+	my @data = ([], []);
 
 	unless ($qs[0]->{'codes'} && $qs[1]->{'codes'}) {
 		print STDERR "Cannot correlate those (yet)!\n";
@@ -1955,15 +1956,17 @@ sub print_corr {
 
 		$corr{$qresp[0]->{'contents'}}{$qresp[1]->{'contents'}}++;
 		add_to_hist($hist[$_], $qresp[$_]->{'contents'}) foreach (0..1);
+		push @{$data[$_]}, $qresp[$_]->{'contents'} foreach (0..1);
 		$total++;
 	}
 	print STDERR "(done)\n";
 
 	print STDERR "Printing correlations... ";
 	my ($irow, $icol) = (0, 1);
+	print "\n";
 	print fmt_comment_oneline("# column (horizontal): $qs[$icol]->{'title'}");
 	print fmt_comment_oneline("# row    (vertical):   $qs[$irow]->{'title'}");
-	print "#" unless ($format eq 'wiki');
+	print "#\n" unless ($format eq 'wiki');
 
 	my $thstyle = defined($rowstyle{'th'}) ?
 	              " style=\"$rowstyle{'th'}\"" : '';
@@ -2044,6 +2047,38 @@ sub print_corr {
 	}
 	print STDERR "(done)\n";
 
+	print STDERR "Calculating rank correlation coefficient etc.";
+	my $stat;
+	foreach my $ix (0..1) {
+		my $iy = 1 - $ix;
+
+		$stat = Statistics::Descriptive::Full->new();
+		$stat->add_data(@{$data[$iy]});
+		my %lin_fit;
+		@lin_fit{'a', 'b', 'r', 'err'} =
+			$stat->least_squares_fit(@{$data[$ix]});
+		print "\n";
+		print "# x: $qs[$ix]->{'title'}\n";
+		print "# y: $qs[$iy]->{'title'}\n";
+		print "# Q$qnos->[$iy] = a*Q$qnos->[$ix] + b\n";
+		print "# a = $lin_fit{'a'}\n";
+		print "# b = $lin_fit{'b'}\n";
+		next if ($ix != 0);
+
+		print "# r   = $lin_fit{'r'} (Pearson linear coefficient)\n";
+		print "# r^2 = ".($lin_fit{'r'}*$lin_fit{'r'})."\n";
+		print "# err = $lin_fit{'err'} (root-mean-square error)\n";
+
+		if (eval { require Statistics::RankCorrelation; }) {
+			$stat = Statistics::RankCorrelation->new($data[$ix], $data[$iy], 'sorted' => 1);
+			print "#\n";
+			print "# Spearman rho  = ".$stat->spearman."\n";
+			#print "# Kendall tau_b = ".$stat->kendall."\n";  # slow, O(N^2) algorithm
+			#print "# csim = ".$stat->csim." (contour similarity index)\n";
+		}
+	}
+	print STDERR "(done)\n";
+
 	# printing data for gnuplot / spreadsheet is done only for 'text'
 	return if ($format eq 'wiki');
 
@@ -2070,6 +2105,19 @@ sub print_corr {
 	$csv->print($fh, ["# total=$total / $nresponses"]); $fh->print("\n");
 
 	$fh->print("\n\n");
+	foreach my $ii (0..1) {
+		$csv->print($fh, [$qs[$ii]->{'title'}]); $fh->print("\n");
+		foreach my $jj (0..$#{$qs[$ii]->{'codes'}}) {
+			$csv->print($fh, [
+				$qs[$ii]->{'codes'}[$jj], $jj,
+				($hist[$ii]->{$jj+1} || 0),
+				($hist[$ii]->{$jj+1} || 0)/$total
+			]);
+			$fh->print("\n");
+		}
+		$fh->print("\n\n");
+	}
+	$fh->print("\n");
 
 	$csv->print($fh, [
 		$qs[$irow]->{'title'}, $qs[$icol]->{'title'}, "corr", "corr [%]", "X*Y"
