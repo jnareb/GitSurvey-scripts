@@ -1029,8 +1029,8 @@ sub normalize_age {
 
 # ......................................................................
 
-sub country2continent {
-	my $country_name = shift;
+sub sth2continent {
+	my ($name, $kind) = @_;
 
 	#return "Unknown"
 	#	unless (scalar grep { $_ eq $country_name } @country_names);
@@ -1040,11 +1040,19 @@ sub country2continent {
 	local $SIG{__WARN__} = sub {};
 
 	my $country = Locale::Object::Country->new(
-		name => $country_name
+		$kind => $name
 	);
 	return $country->continent->name
 		if ($country);
 	return "Unknown";
+}
+
+sub country2continent {
+	return sth2continent(shift, 'name');
+}
+
+sub code2continent {
+	return sth2continent(shift, 'code_alpha2');
 }
 
 # syntactic sugar for iterators, from "Higher Order Perl"
@@ -1553,7 +1561,8 @@ sub add_coderefs {
 			'hist' => \&normalize_country,
 			'post' => sub {
 				post_print_continents_stats(@_);
-				post_print_countries_google_chart_html(@_);
+				post_generate_google_chart_uri(@_);
+				#post_print_countries_google_interactive_chart_html(@_);
 			},
 		},
 		'survey_announcement' => {
@@ -2145,7 +2154,7 @@ sub print_corr {
 
 # ......................................................................
 
-sub post_print_countries_google_chart_html {
+sub post_print_countries_google_interactive_chart_html {
 	my ($survey_data, $responses, $qno, $nresponses) = @_;
 	my $q = $survey_data->{"Q$qno"};
 
@@ -2221,6 +2230,44 @@ print <<"HTML_FOOT";
   </body>
 </html>
 HTML_FOOT
+}
+
+sub post_generate_google_chart_uri {
+	my ($survey_data, $responses, $qno, $nresponses) = @_;
+	my $q = $survey_data->{"Q$qno"};
+
+	# http://code.google.com/apis/chart/docs/making_charts.html
+	# http://code.google.com/apis/chart/docs/gallery/new_map_charts.html
+	my $base_url = 'http://chart.apis.google.com/chart';
+
+	my @countries = grep { $_ !~ /\?/ } keys %{$q->{'histogram'}};
+
+
+	foreach my $filter ('', 'Europe', 'North America', 'Asia', 'South America') {
+		my %codes = map {
+			my $code = country2code($_);
+			$code ? (uc($code) => $q->{'histogram'}{$_}) : ();
+		} @countries;
+
+		# filter
+		if ($filter) {
+			foreach my $country_code (keys %codes) {
+				if (code2continent($country_code) ne $filter) {
+					delete $codes{$country_code};
+				}
+			}
+		}
+
+		print "Continent: $filter\n" if $filter;
+		print $base_url;
+		print	"?cht=map";                         # CHart Type: map chart
+		print "&chs=400x400";                     # CHart Size: (width x height), in pixels, max 600
+		print '&chld=' .join('|', keys %codes);   # a pipe-separated list of uppercase country codes
+		print '&chd=t:'.join(',', values %codes); # CHart Data: comma separated values for countries
+		print '&chds=1,'.(max values %codes);     # range of values in chart data
+		print '&chco=CCCCCC,FF0000,000000';       # CHart COlors: unclaimed land, color gradient
+		print "\n";
+	}
 }
 
 sub post_print_continents_stats {
