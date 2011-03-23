@@ -145,6 +145,7 @@
 - Q9
 - title: '09. On which operating system(s) do you use Git?'
   colname: Operating System
+  type: os
   codes:
     - 'GNU/Linux'
     - '*BSD (FreeBSD, OpenBSD, NetBSD, etc.)'

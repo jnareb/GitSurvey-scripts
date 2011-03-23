@@ -1548,7 +1548,7 @@ sub delete_sections {
 	}
 }
 
-# Add code references to survey structure infor retrieved from file
+# Add code references to survey structure info retrieved from file
 # (storing data references in data serialization file is not good idea)
 sub add_coderefs {
 	my $survinfo = shift;
@@ -1564,6 +1564,9 @@ sub add_coderefs {
 				post_generate_google_chart_uri(@_);
 				#post_print_countries_google_interactive_chart_html(@_);
 			},
+		},
+		'os' => {
+			'post' => \&post_operating_system_variations,
 		},
 		'survey_announcement' => {
 			'post' => \&post_print_date_divided_announce_hist,
@@ -1931,6 +1934,7 @@ sub print_original_responses {
 	foreach my $resp (@$responses) {
 		my $qresp = $resp->[$qno];
 		next unless defined $qresp;
+		next unless ($qresp->{'original'} || $qresp->{'contents'});
 
 		print "-\n".
 		      (defined $qresp->{'original'} ?
@@ -2327,6 +2331,43 @@ sub post_print_age_hist {
 		printf("%-2d %d\n", $age, $count);
 	}
 	print "# min=$ages[0]; max=$ages[-1]\n";
+}
+
+# print summary of split variations, e.g. how many people
+# use MS Windows, where choices were MS Windows/Cygwin and MS Windows/MinGW
+sub post_operating_system_variations {
+	my ($survey_data, $responses, $qno, $nresponses, $sort) = @_;
+	my $q = $survey_data->{"Q$qno"};
+
+	my %variations = (
+		'MS Windows/Cygwin'          => 'MS Windows',
+		'MS Windows/msysGit (MINGW)' => 'MS Windows',
+	);
+	my %var_hist;
+
+ RESPONSE:
+	foreach my $r (@$responses) {
+		my $ans = $r->[$qno]{'contents'};
+		next RESPONSE unless $ans;
+
+	OS:
+		foreach my $os (map { $q->{'codes'}[$_-1] } @$ans) {
+			my $var = $variations{$os};
+			next OS unless $var;
+
+			add_to_hist(\%var_hist, $var);
+			# count variations only once
+			next RESPONSE;
+		}
+	}
+
+	my @rows = keys %var_hist;
+	my $base = $q->{'base'};
+ ROW:
+	foreach my $row (@rows) {
+		print fmt_row_percent($row, $var_hist{$row},
+		                      100.0*$var_hist{$row} / $base, $base);
+	}
 }
 
 # print histogram of number of responses per date,
