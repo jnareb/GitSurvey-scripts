@@ -216,6 +216,7 @@
     - 'managing composite repositories (e.g. git-subtree, gitslave, repo)'
     - 'my own scripts (for daily use)'
     - 'my own scripts (for special tasks)'
+  multi: 1
   description: |
     Here graphics diff tool means tools such as Kompare, and graphical
     merge tool means tools such as Meld and KDiff3. Those answers
