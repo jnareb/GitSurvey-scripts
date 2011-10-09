@@ -343,7 +343,7 @@ sub parse_or_retrieve_data {
 sub prepare_hist {
 	my $survey_data = shift;
 
-	Locale::Country::alias_code('uk' => 'gb');
+	#Locale::Country::alias_code('uk' => 'gb');
 
  QUESTION:
 	for (my $qno = 1; $qno <= $survey_data->{'nquestions'}; $qno++) {
@@ -974,8 +974,10 @@ sub normalize_country {
 
 	# convert to code and back to country, normalizing country name
 	# (or going from code to country)
-	my $code = country2code($country) || $country;
-	$country = code2country($code)    || $country;
+	if ($country) {
+		my $code = country2code($country) || $country;
+		$country = code2country($code)    || $country;
+	}
 
 	unless (scalar grep { $_ eq $country } @country_names) {
 		# 2/3 of Schwartzian transform
