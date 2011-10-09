@@ -1,0 +1,704 @@
+# to be used by survey_parse_Survs.com_CSV-Num.perl script
+# edited by hand, based on copy'n'paste of survey site (edit)
+---
+- survey_title
+- "Git User's Survey 2011"
+- survey_stats
+- |
+  Total respondents:	11498
+  Viewed:		98604
+  Incomplete:		 4321
+  Complete:		 7177
+  First response:	Sep 05, 2011
+  Last response:	Oct 03, 2011
+  Open during:	30 days
+  Average time:	40 minutes
+- S1
+- section_title: About you
+- Q1
+- title: '01. What country do you live in (country of residence)?'
+  colname: Country
+  type: country
+  description: |
+    Please provide name of the country in English, e.g. 'United States'
+    or 'Germany' (without quotes).
+- Q2
+- title: '02. How old are you (in years)?'
+  colname: Age
+  type: age
+  description: Please provide simple number, e.g. 25
+  bins:
+    - ' < 18'
+    - '18-21'
+    - '22-25'
+    - '26-30'
+    - '31-40'
+    - '41-50'
+    - '51-75'
+    - '76+  '
+    - NaN
+- Q3
+- title: '03. Does Git include code or documentation by you? (Are you a Git developer?)'
+  codes:
+    - Yes
+    - No
+- S2
+- section_title: Getting started with Git
+- Q4
+- title: '04. Have you found Git easy to learn?'
+  codes:
+    - Very easy
+    - Easy
+    - Reasonably easy
+    - Hard
+    - Very hard
+- Q5
+- title: '05. Have you found Git easy to use?'
+  codes:
+    - Very easy
+    - Easy
+    - Reasonably easy
+    - Hard
+    - Very hard
+  description: |
+    Both question "3. Have you found Git easy to learn?" and "4. Have you
+    found Git easy to use?" are about being it easy or hard in general; for
+    mathematically inclined you can think about it as a weighted average.
+- Q6
+- title: '06. Which Git version(s) are you using?'
+  colname: Git version
+  codes:
+    - pre 1.3
+    - 1.3.x
+    - 1.4.x
+    - 1.5.x
+    - 1.6.x
+    - 1.7.x
+    - 1.7.x-rcN version (release candidate)
+    - minor (maintenance) release 1.x.y.z
+    - "'master' branch of official git repository"
+    - "'next' branch of official git repository"
+    - "'pu' branch of official git repository"
+    - "version from msysGit / Git for Windows fork repository"
+    - "JGit implementation (e.g. via Eclipse plugin, EGit)"
+    - "other git implementation (Git#, Dulwich, etc.)"
+    - 'other, please specify'
+  other: 1
+  multi: 1
+  description: |
+    You can find git version by using "git --version" or "git version".
+    
+    "Minor release" is additional specification, so if you for example use
+    git version 1.6.3.3, please check both "1.6.x" and "minor release"; if
+    you use "v1.7.6-rc3" please check both "1.7.x" and "-rcN version".
+- Q7
+- title: '07. Rate your own proficiency with Git:'
+  codes:
+    - '1. novice'
+    - '2. casual, needs advice'
+    - '3. everyday use'
+    - '4. can offer advice'
+    - '5. know it very well'
+  description: You can think of it as 1-5 numerical grade of your proficiency in Git.
+- S3
+- section_title: How you use Git
+- Q8
+- title: '08. I use Git for (check all that apply):'
+  codes:
+    - 'work projects'
+    - 'unpaid projects'
+    - 'proprietary projects'
+    - 'OSS development (also public domain, and published and unlicensed)'
+    - 'private stuff (unpublished), in house'
+    - 'code (programming) and its documentation'
+    - 'data, documents (also e.g. static website)'
+    - 'sharing data or sync'
+    - 'managing configuration files'
+    - 'backup'
+    - 'backend for wiki, blog, or other web app'
+    - 'backend for bugtracker / issue tracker'
+    - 'frontend to other SCM (e.g. git-svn)'
+    - 'other (please specify)'
+  other: 1
+  multi: 1
+  description: |
+    Note that above choices are neither orthogonal nor exclusive.
+    You might want to check multiple answers even for a single repository.
+- Q9
+- title: '09. How do/did you obtain Git (install and/or upgrade)?'
+  codes:
+    - 'binary package'
+    - 'source package or script (automatic compiling)'
+    - 'source tarball (extract, make, make install)'
+    - 'pull from (main) repository'
+    - 'preinstalled / sysadmin job'
+    - 'other - please specify (if none of the above apply)'
+  other: 1
+  multi: 1
+  description: |
+    Explanation: binary package covers pre-compiled binary (e.g. from rpm
+    or deb binary packages); source package covers things like deb-src and
+    SRPMS/*.src.rpm; source script is meant to cover installation in
+    source-based distributions, like 'emerge' in Gentoo. "Source package or
+    script" means that git is compiled from source, but it is installed as
+    system package (easy uninstall / upgrade).
+    
+    Automatic update (apt, yum, etc.) in most cases means binary package
+    install; unless one uses source-based distribution like Gentoo, CRUX,
+    or SourceMage, where automatic update means using source package (or
+    source script).
+    
+    The option named "preinstalled / sysadmin job" means that either you
+    didn't need to install git because it was preinstalled (and you didn't
+    upgrade); or that you have to ask system administrator to have git
+    installed or upgraded.
+    
+    Note that this question is multiple choices question because one can
+    install Git in different ways on different machines or on different
+    operating systems.
+- Q10
+- title: '10. On which operating system(s) do you use Git?'
+  colname: Operating System
+  type: os
+  codes:
+    - 'GNU/Linux (includes MeeGo)'
+    - '*BSD (FreeBSD, OpenBSD, NetBSD, etc.)'
+    - 'MacOS X (Darwin)'
+    - 'MS Windows/Cygwin'
+    - 'MS Windows/msysGit (MINGW)'
+    - 'some MS Windows (unknown or other)'
+    - 'Solaris / OpenSolaris / Illuminati / IllumOS'
+    - 'other Unix'
+    - 'Other, please specify'
+  other: 1
+  multi: 1
+  description: |
+    On Unix-based operating system you can get the name of operation
+    system by running 'uname'.
+- Q11
+- title: '11. What Git interfaces, implementations and frontends do you use?'
+  codes:
+    - 'git (core) commandline'
+    - 'JGit (Java implementation), e.g. via Eclipse plugin'
+    - 'NGit or Git# (C# implementation)'
+    - 'Dulwich (pure-Python implementation)'
+    - 'Git::PurePerl (Perl implementation)'
+    - 'git.js (JavaScript)'
+   #- Grit (Ruby)
+    - libgit2 bindings
+    - Easy Git
+    - StGIT
+    - Guilt
+    - TopGit
+    - Zit
+    - "I don't know, I use only (graphical) tools"
+    - Other (please specify)
+  multi: 1
+  other: 1
+- Q12
+- title: '12. What kind of Git tools do you use?'
+  codes:
+    - 'editor/IDE VC integration (e.g. EGit, TextMate bundle, magit)'
+    - 'build tool integration (e.g. git plugin for Maven, gitbuilder, Parabuild)'
+    - 'filemanager / shell extension (e.g. git-cheetah, TortoiseGit)'
+    - 'filesystem interface (e.g. gitfs, figfs)'
+    - 'graphical history viewer/browser (e.g. gitk)'
+    - 'graphical commit tool (e.g. git-gui)'
+    - 'graphical diff and/or merge tool (e.g. Kompare, Meld)'
+    - 'graphical blame or pickaxe tool'
+    - 'tool to manage git repositories (e.g. Gitosis, Gitolite)'
+    - 'git-instaweb, or self-hosted web interface'
+    - 'self-hosted code review system (e.g. Gerrit)'
+    - 'self-hosted git software forge (e.g. Gitorious, GitHub:FI, InDefero)'
+    - 'patch management interface (e.g. StGit, Guilt)'
+    - 'tracking some files out-of-band (e.g. git-annex, git-media)'
+    - 'storing metadata (e.g. metastore, gitperms, git-cache-meta)'
+    - 'managing composite repositories (e.g. git-subtree, gitslave, repo)'
+    - 'my own scripts (for daily use)'
+    - 'my own scripts (for special tasks)'
+  description: |
+    Here graphics diff tool means tools such as Kompare, and graphical
+    merge tool means tools such as Meld and KDiff3. Those answers
+    include graphical merge and diff tools used by programmers editors
+    and IDEs.
+    
+    "graphical history browser (any)" covers tools such as gitk, QGit,
+    Giggle, tig etc., but also built-in git commands such as "git log
+    --graph" and "git show-branch". If you use one of mentioned tools _as_
+    history browser, mark both a tool and "graphical history browser
+    (any)"; if you use some graphical history viewer not listed here,
+    please both mark this answer and specify it in the "other tool"
+    answer.
+    
+    Similarly for other answers marked "(any)".
+
+    Please select GUI that you use somewhat regularly (at least from time
+    to time).
+
+    Similar issue applies to all other "What do you use?" kind of questions.
+- Q13
+- title: '13. List git tools that you use (optional)'
+  freeform: 1
+  description: |
+    Please include only frontends, interfaces and tools that have support
+    for Git (so e.g. EGit applies, but Eclipse doesn't).
+
+    Please either use comma separated list of tools, or put each tool in a
+    separate line. That would make analysis of answers simpler. Thanks
+    in advance.
+- Q14
+- title: '14. What do you use submodules (or their equivalent) for?'
+  codes:
+    - "I don't use submodules at all"
+    - "I use submodules (git-submodule)"
+    - "I use repo"
+    - "I use git-subtree"
+    - "I use gitslave"
+    - "to import repositories maintained by others (in subdirectory)"
+    - "for your own (or your organization's) code shared between different projects"
+    - "to separate large and/or many files for performance reasons"
+    - "to separate data which you don't want (or aren't allowed) to disclose"
+    - "Other, please specify"
+  other: 1
+  multi: 1
+- Q15
+- title: '15. How do you include changes in a new commit?'
+  columns:
+   - never
+   - rarely
+   - often
+  codes:
+   - commit -a
+   - commit <file>
+   - commit -i <file>
+   - git add
+   - git stage
+   - git update-index
+   - incremental add / commit
+   - graphical commit tool
+   - filemanager extension
+- Q16
+- title: '16. Which of the following features do you use?'
+  codes:
+    - 'git bundle (off-line transport)'
+    - 'eol conversion (crlf)'
+    - 'custom diff/merge driver'
+    - 'textconv'
+    - 'word diff'
+    - 'gitattributes (other than above)'
+    - 'merge strategy options (e.g. -Xrenormalize)'
+    - 'submodules (subprojects)'
+    - 'subtree merge (optionally git-subtree)'
+    - 'partial (sparse) checkout'
+    - 'assume-unchanged bit'
+    - 'separate worktree / core.worktree'
+    - 'multiple worktrees (git-new-worktree)'
+    - "gitdir mechanism ('.git' file pointing to repository)"
+    - 'alternates mechanism (sharing object database)'
+    - 'stash (optionally "git stash --keep-index")'
+    - 'shallow clone (e.g. "git clone --depth=<n>")'
+    - 'detaching HEAD (e.g. "git checkout HEAD^0")'
+    - 'commit message templates'
+    - 'interactive commit / per-hunk comitting / partial commit'
+    - 'interactive rebase (small scale history editing)'
+    - 'git-filter-branch or equivalent (large history rewriting)'
+    - 'bisect (optionally "git bisect run <script>")'
+    - 'tracking code movement with git-blame ("git blame -M" etc.)'
+    - 'advanced history examination (pickaxe search, ancestor only, etc.)'
+    - 'committing with dirty tree (keeping some changes uncommitted)'
+    - 'non-default hooks (from contrib/hooks/ or other)'
+    - 'shell completion of commands'
+    - 'git-aware shell prompt'
+    - 'git aliases, shell aliases for git, or own git scripts'
+    - 'one-way interaction with other SCMs (from SCM to git)'
+    - 'two-way interaction with other SCMs (git as fat client)'
+    - 'git cvsserver'
+    - 'git notes'
+    - 'replace meachanism (git replace)'
+    - 'permanent grafts (not only as a way to do filter-branch)'
+    - 'Other, please specify'
+  multi: 1
+  other: 1
+- Q17
+- title: '17. Which of the following features would you like to see implemented in git?'
+  codes:
+    - 'better support for big files (large media)'
+    - 'resumable clone/fetch (and other remote operations)'
+    - 'GitTorrent Protocol, or git-mirror'
+    - 'lazy clone / on-demand fetching of object'
+    - 'subtree clone'
+    - 'support for tracking empty directories'
+    - 'environment variables in config'
+    - 'better undo/abort/continue, and for more commands'
+    - "'-n' like option for each command, which describes what would happen"
+    - 'warn before/when rewriting published history'
+    - 'side-by-side diffs and/or color-words diff in gitweb'
+    - 'admin and/or write features in gitweb'
+    - 'graphical history view in gitweb'
+    - 'GUI for rebase in git-gui'
+    - 'GUI for creating repository in git-gui'
+    - 'graphical diff/merge tool integrated with git-gui'
+    - 'syntax highlighting in git-gui'
+    - 'filename encoding (in repository vs in filesystem)'
+    - 'git push --create'
+    - 'localization of command-line messages (i18n)'
+    - 'wholesame directory rename detection'
+    - 'union checkouts (some files from one branch, some from other)'
+    - 'advisory locking / "this file is being edited"'
+    - '"commands issued" (or "command equivalents") in git-gui / gitk'
+    - 'built-in gitjour/bananajour support'
+    - 'better support for submodules'
+    - 'other (described below)'
+  multi: 1
+- Q18
+- title: |-
+    18. Describe what features would you like to have in Git,
+        if they are not present on the list above (in previous question)
+  freeform: 1
+- S4
+- section_title: Interacting with other repositories
+- Q19
+- title: |-
+    19. Which git hosting site(s) do you use for your project(s)?
+        (Please check only hosting sites where you publish/push to)
+  type: multiplicity
+  codes:
+    - repo.or.cz
+    - GitHub
+    - Gitorious
+    - Google Code
+    - InDefero
+    - Savannah
+    - SourceForge
+    - BerliOS
+    - Assembla
+    - Codebase
+    - Unfuddle
+    - Codesion
+    - GitFarm
+    - ProjectLocker
+    - The Chaw
+    - Beanstalk
+    - CipherHive
+    - kernel.org
+    - freedesktop.org
+    - Alioth
+    - debian-hosted
+    - Fedora Hosted
+    - git hosting site for set of related projects (e.g. OLPC)
+    - generic site without git support
+    - company internal
+    - self hosted
+    - Other (please specify)
+  multi: 1
+  other: 1
+  description: |
+    You can find those and other git hosting sites listed on
+    http://git.wiki.kernel.org/index.php/GitHosting
+- Q20
+- title: '19. Do you use paid git hosting, and if so, why?'
+  codes:
+    - "N/A (don't use paid git hosting)"
+    - "private repositories"
+    - "increased limits (repository size, number of repositories)"
+    - "paid support / help"
+    - "extra features compared to free plan / free hosting"
+    - "other, please specify"
+  multi: 1
+  other: 1
+- Q21
+- title: |-
+    20. If you self-host git repositories, what tools do you use?
+        (if you are hosting git repositories, and use those tools)
+  codes:
+    - gitosis
+    - gitolite
+    - Gitblit
+    - SCM Manager
+    - gitweb
+    - cgit
+    - Gitalist
+    - ViewGit
+    - GitPHP / git-php
+    - GitHub:FI
+    - Gitorious
+    - InDefero
+    - Girocco (used e.g. by repo.or.cz)
+    - repo
+    - Gerrit
+    - other management / collaboration git tool
+  multi: 1
+  other: 1
+- Q22
+- title: '22. How do you fetch/get changes from upstream repositories?'
+  codes:
+    - 'git protocol (e.g. git://example.com/repo.git)'
+    - 'ssh (e.g. ssh://example.com/repo.git or user@example.com:/repo.git)'
+    - 'http (e.g. http://example.com/repo.git)'
+    - 'rsync (DEPRECATED) (e.g. rsync://example.com/repo.git)'
+    - 'filesystem (e.g. /path/to/repo.git or file:///path/to/repo.git)'
+    - 'via git-bundle'
+    - 'foreign SCM import / script like git-svn'
+    - 'Other, please specify'
+  multi: 1
+  other: 1
+  description: |
+    This question asks about how do you get changes (updates) from
+    projects you follow into your local repository. It is not about how do
+    you get latest version of Git.
+    
+    Fetching (or rather cloning) via bundle could mean that project
+    publishes ready for download bundles to reduce traffic and load on
+    server (HTTP download [of bundle] can be resumed, git-clone currently
+    cannot; one can also distribute bundle using P2P).
+- Q23
+- title: '23. How do you publish/propagate your changes?'
+  codes:
+    - 'push via SSH'
+    - 'push via HTTP or HTTPS'
+    - 'push via git protocol'
+    - 'push (unknown)'
+    - 'pull request (+ any form of announcement / notification)'
+    - 'format-patch + email'
+    - 'format-patch + other (e.g. reviewboard, issue tracker or forum)'
+    - 'git bundle'
+    - 'git-svn (to Subversion repository)'
+    - 'git-p4 (to Perforce repository)'
+    - 'foreign SCM interface (other than mentioned above)'
+    - 'other - please specify'
+  multi: 1
+  other: 1
+  description: |
+    Publishing via bundle could mean sending bundle via email, or posting
+    it on review board (or forum).
+
+    Instead of git-format-patch there can be utilized other way of
+    generating patch (e.g. git-show, git-diff, 'patch' view from
+    gitweb, etc.)
+
+    NOTE: "push via git protocol" was to mean push to URL which looks like
+    git://git.example.com/repo but was probably misunderstood.
+- S5
+- section_title: Other version control systems
+- Q24
+- title: '24. What other version control systems do you use beside Git?'
+  codes:
+    - PVCS
+    - SCCS
+    - RCS
+    - CVS
+    - Subversion
+    - Perforce
+    - ClearCase
+    - AccuRev SCM
+    - StarTeam
+    - Visual SourceSafe
+    - Vault
+    - Team Foundation Server
+    - Visual Studio Team System / ALM
+    - Rational Team Concert
+    - Bazaar
+    - Mercurial
+    - Monotone
+    - Darcs
+    - SVK
+    - Fossil
+    - Veracity
+    - BitKeeper
+    - Code Co-Op
+    - Teamware
+    - Plastic SCM
+    - by hand / own scripts / custom
+    - 'other, please specify'
+  multi: 1
+  other: 1
+- S6
+- section_title: What you think of Git
+- Q25
+- title: '25. Overall, how happy are you with Git?'
+  codes:
+    - unhappy
+    - not so happy
+    - happy
+    - very happy
+    - completely ecstatic
+- Q26
+- title: |-
+    26. In your opinion, which areas in Git need improvement?
+        Please state your preference.
+  columns:
+    - "don't care"
+    - "don't need"
+    - "a little"
+    - "some"
+    - "much"
+  codes:
+    - user-interface
+    - documentation
+    - performance
+    - portability
+    - more features
+    - tools (e.g. GUI)
+    - localization (translation)
+    - community (mailing list)
+    - community (IRC)
+- S7
+- section_title: 'Changes in Git (since year ago, or since you started using it)'
+- Q27
+- title: "27. Did you participate in previous Git User's Surveys?"
+  codes:
+    - in 2006
+    - in 2007
+    - in 2008
+    - in 2009
+    - in 2010
+    - "I don't remember, but I have participated in the past"
+    - "none of above (first Git User's Survey)"
+  multi: 1
+- Q28
+- title: '28. How do you compare the current Git version with the version from one year ago?'
+  codes:
+    - better
+    - no changes
+    - worse
+    - cannot say
+  description: |
+    The version from approximately one year ago is 1.7.2 from 21-07-2011
+    (1.7.3 is from 18-09-2010).
+    
+    Changes since 1.7.2 include:
+     * passing extra options to merge strategy via "-X" in more places
+     * -Xrename-threshold and -Xignore-space-at-eol for recursive merge strategy
+     * "exec" instruction support in interactive rebase
+     * system-wide attributes file /etc/gitattributes and `core.attributesfile`
+     * completion of commands for bash 4 and zsh
+     * [<tree>]:./<path> to use path relative to current directory
+     * ":/<path>" to use path relative to root of working tree hierarchy
+     * ":/" magic pathspec to work on entire working tree
+     * "git log -G"
+     * globbing pathspecs in "git log"
+     * git log --cherry and --cherry-mark
+     * "git notes merge" and --notes option to "git log" and friends
+     * extending "git shell" with custom set of commands
+     * beginnings of i18n/l10n and translations
+     * "git checkout --detach"
+     * "git cherry-pick" and "git revert" improvements
+     * "git merge" and "git rebase" now DWIMs to upstream
+     * "git merge -" to merge the previous branch
+     * `merge.ff` configuration variable
+     * selecting common timezone in gitweb with JavaScript
+     * updated (faster and more robust) content tags (labels) in gitweb
+     * GIT_PREFIX in "[alias] <name> = !process"
+     * git diff --dirstat=0 and --dirstat=lines
+     * and more...
+    
+    See individual RelNotes for more details
+- S8
+- section_title: Documentation. Getting and giving help.
+- Q29
+- title: '29. How useful have you found the following forms of Git documentation?'
+  columns:
+    - never used
+    - not useful
+    - somewhat
+    - useful
+  codes:
+    - Git Wiki
+    - Git Reference site
+    - on-line help
+    - help distributed with git
+    - printed books (or ebooks)
+  description: |
+    * Git Wiki can be found at http://git.wiki.kernel.org
+    * Git Reference site can be found at http://gitref.org
+    * on-line help includes, among others, Git Homepage (http://git-scm.com)
+      and "Git Community Book" (http://book.git-scm.com)
+    * help distributed with git include manpages, manual, tutorials, HOWTO,
+      release notes, technical documentation, contrib/examples/
+- Q30
+- title: '30. What channel(s) did you use to request help?'
+  colname: Channel
+  codes:
+    - "N/A (didn't request help about Git)"
+    - 'git mailing list (git@vger.kernel.org)'
+    - 'msysGit mailing list / Google Group'
+    - '"Git for Human Beings" Google Group'
+    - 'IRC (#git)'
+    - 'IRC (other git/SCM related, e.g. #github)'
+    - 'IRC (other than above)'
+    - 'request in blog post or on wiki'
+    - 'asking git guru/colleague'
+    - 'project mailing list, or IRC, or forum'
+    - 'Twitter or other microblogging platform'
+    - 'instant messaging (IM) like XMPP/Jabber'
+    - 'StackOverflow or other StackExchange site'
+    - 'other (please specify)'
+  multi: 1
+  other: 1
+- Q31
+- title: '31. What gave you most trouble learning, understanding and using Git?'
+  freeform: 1
+- Q32
+- title: |-
+    32. Which communication channel(s) do you use?
+        Do you read the mailing list, or watch IRC channel?
+  colname: Channel
+  codes:
+    - git@vger.kernel.org (main)
+    - Git for Human Beings (Google Group)
+    - msysGit
+    - '#git IRC channel'
+    - '#git-devel IRC channel'
+    - '#github or #gitorious IRC channel'
+    - '#revctrl IRC channel'
+  multi: 1
+- Q33
+- title: '33. Did you give help about Git? What medium did you use?'
+  codes:
+    - "N/A (didn't give help about Git)"
+    - 'talk / private explanation'
+    - 'comment on somebody else blog'
+    - 'IRC channel'
+    - 'presentation / seminar'
+    - 'workshop or other form of schooling / training'
+    - 'blog post / webpage'
+    - 'article in magazine'
+    - 'book or ebook'
+    - 'git mailing list'
+    - 'other mailing list'
+    - 'email'
+    - 'Usenet (newsgroup)'
+    - 'instant messaging (IM) like XMPP/Jabber'
+    - 'forum or wiki'
+    - 'StackOverflow or similar'
+    - 'remote aid / control tool, like FogCreek Copilot'
+    - 'Other, please specify'
+  multi: 1
+  other: 1
+- Q34
+- title: '34. What gave you most trouble explaining and teaching Git?'
+  freeform: 1
+- S9
+- section_title: About this survey.
+- Q35
+- title: "35. How did you hear about this Git User's Survey?"
+  type: survey_announcement
+  codes:
+    - 'git mailing list'
+    - 'git-related mailing list (msysGit, Git for Human Beings, ...)'
+    - 'mailing list or forum of some project'
+    - '#git IRC channel topic'
+    - 'announcement on IRC channel'
+    - 'git homepage'
+    - 'git wiki'
+    - 'git hosting site'
+    - 'software-related web site'
+    - 'news web site or social news site (e.g. Digg, Reddit)'
+    - 'blog (or blog planet)'
+    - 'other kind of web site'
+    - 'Twitter or other microblogging platform'
+    - 'Google+, Facebook, or other social platform'
+    - 'other - please specify'
+  other: 1
+- nquestions
+- 35
