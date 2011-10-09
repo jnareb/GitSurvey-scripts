@@ -2,7 +2,7 @@
 
 # survey_parse - parse results of survey from Survs.com in CSV format
 #
-# (C) 2008-2010, Jakub Narebski
+# (C) 2008-2011, Jakub Narebski
 #
 # This program is licensed under the GPLv2 or later
 #
@@ -49,11 +49,11 @@ binmode STDOUT, ':utf8';
 
 # ======================================================================
 # ----------------------------------------------------------------------
-my $survinfo_file = 'GitSurvey2010_questions.yml';
-my $filename = 'Survey results Oct 16, 10.csv';
-my $respfile = 'GitSurvey2010.responses.storable';
-my $statfile = 'GitSurvey2010.stats.storable';
-my $otherfile = 'GitSurvey2010.other_repl.yml'; # user-editable
+my $survinfo_file = 'GitSurvey2011_questions.yml';
+my $filename = 'Survey results Oct 03, 11.csv';
+my $respfile = 'GitSurvey2011.responses.storable';
+my $statfile = 'GitSurvey2011.stats.storable';
+my $otherfile = 'GitSurvey2011.other_repl.yml'; # user-editable
 
 my ($reparse, $restat);
 
