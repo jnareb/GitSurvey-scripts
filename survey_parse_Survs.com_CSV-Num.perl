@@ -45,7 +45,8 @@ use Storable qw(store retrieve);
 #use YAML::Tiny qw(DumpFile LoadFile);
 use YAML::Any qw(DumpFile LoadFile);
 
-binmode STDOUT, ':utf8';
+use utf8;
+use open qw(:encoding(UTF-8) :std);
 
 # ======================================================================
 # ----------------------------------------------------------------------
@@ -259,8 +260,10 @@ sub parse_data {
 	open my $fh, '<', $filename
 		or die "Could not open file '$filename': $!";
 	if ($filename =~ m/\.gz$/) {
-		binmode $fh, ':gzip'
+		binmode $fh, ':gzip:encoding(UTF-8)'
 			or die "Could not set up gzip decompression on '$filename': $!";
+	} else {
+		binmode $fh, ':encoding(UTF-8)';
 	}
 
 	# ........................................
