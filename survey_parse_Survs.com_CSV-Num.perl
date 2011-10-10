@@ -2508,8 +2508,8 @@ delete_sections(\%survey_data);
 
 # number of questions is hardcoded here to allow faster fail
 unless (!defined $resp_only ||
-        (0 <= $resp_only && $resp_only <= 30)) {
-	print STDERR "Response number $resp_only is not between 0 and 30\n";
+        (0 <= $resp_only && $resp_only <= 35)) {
+	print STDERR "Response number $resp_only is not between 0 and 35\n";
 	exit 1;
 }
 
